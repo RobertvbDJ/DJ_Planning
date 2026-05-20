@@ -1,0 +1,206 @@
+{
+  "configuratie": {
+    "global_custom_fields": [
+      "Contactpersoon TD",
+      "Toegangscode hek",
+      "Specifieke instructie technicus",
+      "Certificaatnummer"
+    ]
+  },
+  "servicepartners": [
+    "WeegTechniek NL",
+    "MilieuService Partners",
+    "TechFix Industrie"
+  ],
+  "apparatuur": [
+    {
+      "id": "eq-1",
+      "type": "weegschaal",
+      "naam": "Mettler Toledo Bench Scale",
+      "model": "ICS465",
+      "serienummer": "MT-988371-B",
+      "locatie": "Hal A - Inpak",
+      "weegbereik": "0 - 15 kg",
+      "nauwkeurigheid": "1 g",
+      "interval_maanden": 12,
+      "laatste_datum": "2025-06-15",
+      "volgende_datum": "2026-06-15",
+      "contract": true,
+      "contactpersoon": "Marc de Vries",
+      "contact_email": "m.devries@afvalverwerking-voorbeeld.nl",
+      "contact_telefoon": "06-12345678",
+      "bijzonderheden": "Weegschaal wordt intensief gebruikt voor verzendingen. Kalibratie bij voorkeur in de ochtend.",
+      "custom_fields": {
+        "Contactpersoon TD": "Gert-Jan (WeegTechniek)",
+        "Toegangscode hek": "1234#",
+        "Specifieke instructie technicus": "Meldkamer eerst bellen bij aankomst."
+      }
+    },
+    {
+      "id": "eq-2",
+      "type": "weegschaal",
+      "naam": "PBA430 Vloerweegschaal",
+      "model": "PBA430-CC150",
+      "serienummer": "MT-449201-V",
+      "locatie": "Expeditie - Goederenontvangst",
+      "weegbereik": "0 - 150 kg",
+      "nauwkeurigheid": "10 g",
+      "interval_maanden": 6,
+      "laatste_datum": "2025-12-10",
+      "volgende_datum": "2026-06-10",
+      "contract": true,
+      "contactpersoon": "Marc de Vries",
+      "contact_email": "m.devries@afvalverwerking-voorbeeld.nl",
+      "contact_telefoon": "06-12345678",
+      "bijzonderheden": "Ingebouwd in de vloer. Moet schoongemaakt worden voor kalibratie.",
+      "custom_fields": {
+        "Contactpersoon TD": "Gert-Jan (WeegTechniek)",
+        "Toegangscode hek": "1234#",
+        "Specifieke instructie technicus": "Heftruckverkeer stilleggen tijdens meting."
+      }
+    },
+    {
+      "id": "eq-3",
+      "type": "afvalmachine",
+      "naam": "Balenpers HSM V-Press 860",
+      "model": "V-Press 860 Eco",
+      "serienummer": "HSM-860-2022-09",
+      "locatie": "Buiten - Milieustraat",
+      "weegbereik": "N.v.t.",
+      "nauwkeurigheid": "N.v.t.",
+      "interval_maanden": 12,
+      "laatste_datum": "2025-07-20",
+      "volgende_datum": "2026-07-20",
+      "contract": true,
+      "contactpersoon": "Herman de Jong",
+      "contact_email": "h.dejong@afvalverwerking-voorbeeld.nl",
+      "contact_telefoon": "06-87654321",
+      "bijzonderheden": "Hydraulische pers voor karton en plastic. Staat onder een overkapping.",
+      "custom_fields": {
+        "Contactpersoon TD": "Kees (MilieuService)",
+        "Toegangscode hek": "Geen hek, vrije inloop",
+        "Specifieke instructie technicus": "Pers leegmaken voor keuring."
+      }
+    },
+    {
+      "id": "eq-4",
+      "type": "afvalmachine",
+      "naam": "Schredder Lindner Micromat",
+      "model": "Micromat 1500",
+      "serienummer": "LND-1500-4829",
+      "locatie": "Hal B - Kunststofverwerking",
+      "weegbereik": "N.v.t.",
+      "nauwkeurigheid": "N.v.t.",
+      "interval_maanden": 6,
+      "laatste_datum": "2025-11-05",
+      "volgende_datum": "2026-05-05",
+      "contract": false,
+      "contactpersoon": "Herman de Jong",
+      "contact_email": "h.dejong@afvalverwerking-voorbeeld.nl",
+      "contact_telefoon": "06-87654321",
+      "bijzonderheden": "Zwaar belaste machine. Messen moeten gecontroleerd worden op slijtage.",
+      "custom_fields": {
+        "Contactpersoon TD": "Richard (MilieuService)",
+        "Toegangscode hek": "9988*",
+        "Specifieke instructie technicus": "Lock-out tag-out (LOTO) procedure strikt volgen!"
+      }
+    },
+    {
+      "id": "eq-5",
+      "type": "weegschaal",
+      "naam": "Sartorius Laboratoriumweegschaal",
+      "model": "Secura 224-1S",
+      "serienummer": "SAR-88203-L",
+      "locatie": "Laboratorium - Kwaliteitsdienst",
+      "weegbereik": "0 - 220 g",
+      "nauwkeurigheid": "0.1 mg",
+      "interval_maanden": 12,
+      "laatste_datum": "2025-05-15",
+      "volgende_datum": "2026-05-15",
+      "contract": false,
+      "contactpersoon": "Annelies Bakker",
+      "contact_email": "a.bakker@afvalverwerking-voorbeeld.nl",
+      "contact_telefoon": "06-11223344",
+      "bijzonderheden": "Analytische balans. Extreem trillingsgevoelig. Moet ter plaatse gekalibreerd worden.",
+      "custom_fields": {
+        "Contactpersoon TD": "Gert-Jan (WeegTechniek)",
+        "Toegangscode hek": "Lab-sleutel bij receptie",
+        "Specifieke instructie technicus": "Labjas en haarnetje verplicht."
+      }
+    }
+  ],
+  "taken": [
+    {
+      "id": "task-1",
+      "equipment_id": "eq-1",
+      "titel": "Kalibratie Mettler Toledo Hal A",
+      "type": "kalibratie",
+      "status": "opdracht_ontvangen",
+      "prioriteit": "medium",
+      "geplande_datum": "2026-06-15",
+      "bezoekdatum": "",
+      "servicepartner": "WeegTechniek NL",
+      "omschrijving": "Jaarlijkse kalibratie van de tafelweegschaal in Hal A."
+    },
+    {
+      "id": "task-2",
+      "equipment_id": "eq-2",
+      "titel": "Kalibratie PBA430 Vloerweegschaal",
+      "type": "kalibratie",
+      "status": "te_benaderen",
+      "prioriteit": "medium",
+      "geplande_datum": "2026-06-10",
+      "bezoekdatum": "",
+      "servicepartner": "WeegTechniek NL",
+      "omschrijving": "Halfjaarlijkse kalibratie van de ingebouwde vloerweegschaal."
+    },
+    {
+      "id": "task-3",
+      "equipment_id": "eq-3",
+      "titel": "Periodiek Onderhoud Balenpers HSM",
+      "type": "onderhoud",
+      "status": "wacht_op_klant",
+      "prioriteit": "medium",
+      "geplande_datum": "2026-07-20",
+      "bezoekdatum": "",
+      "servicepartner": "MilieuService Partners",
+      "omschrijving": "Jaarlijkse keuring en onderhoudsbeurt aan de balenpers."
+    },
+    {
+      "id": "task-4",
+      "equipment_id": "eq-4",
+      "titel": "Onderhoud Schredder Lindner Hal B",
+      "type": "onderhoud",
+      "status": "wacht_op_reactie_td",
+      "prioriteit": "hoog",
+      "geplande_datum": "2026-05-05",
+      "bezoekdatum": "",
+      "servicepartner": "MilieuService Partners",
+      "omschrijving": "Halfjaarlijkse controle en messenslijtage-meting."
+    },
+    {
+      "id": "task-5",
+      "equipment_id": "eq-5",
+      "titel": "Kalibratie Sartorius Laboratorium",
+      "type": "kalibratie",
+      "status": "ingepland",
+      "prioriteit": "medium",
+      "geplande_datum": "2026-05-15",
+      "bezoekdatum": "2026-05-22",
+      "servicepartner": "WeegTechniek NL",
+      "omschrijving": "Jaarlijkse fijnkalibratie labbalans."
+    },
+    {
+      "id": "task-6",
+      "equipment_id": "eq-3",
+      "titel": "Storing: Perscilinder lekt hydrauliekolie",
+      "type": "storing",
+      "status": "ingepland",
+      "prioriteit": "hoog",
+      "geplande_datum": "2026-05-20",
+      "bezoekdatum": "2026-05-21",
+      "servicepartner": "TechFix Industrie",
+      "omschrijving": "De perscilinder lekt olie aan de linkerkant. Hierdoor bouwt de pers onvoldoende druk op voor de balen."
+    }
+  ]
+}
