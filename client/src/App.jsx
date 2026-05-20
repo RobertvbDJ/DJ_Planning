@@ -64,6 +64,7 @@ export default function App() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showEquipmentForm, setShowEquipmentForm] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
+  const [newServicePartnerName, setNewServicePartnerName] = useState('');
   
   // Tab 4 Selection State
   const [selectedBulkTasks, setSelectedBulkTasks] = useState({});
@@ -362,6 +363,65 @@ export default function App() {
       showToast(`Globaal veld "${fieldName}" verwijderd.`);
     } catch (err) {
       console.error("Fout bij verwijderen custom field:", err);
+    }
+  };
+
+  // ==========================================
+  // MANAGE SERVICE PARTNERS (DUAL-MODE)
+  // ==========================================
+  const addServicePartner = async (partnerName) => {
+    const trimmed = partnerName.trim();
+    if (!trimmed) return;
+    if (servicepartners.includes(trimmed)) {
+      showToast("Deze servicepartner bestaat al.");
+      return;
+    }
+    
+    const updatedPartners = [...servicepartners, trimmed];
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ servicepartners: updatedPartners })
+        });
+      } else {
+        await fetch(`${API_BASE}/configuratie`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ configuratie: { servicepartners: updatedPartners } })
+        });
+      }
+      setServicepartners(updatedPartners);
+      setNewServicePartnerName('');
+      showToast(`Servicepartner "${trimmed}" toegevoegd!`);
+    } catch (err) {
+      console.error("Fout bij toevoegen servicepartner:", err);
+      showToast("Kon de servicepartner niet opslaan.");
+    }
+  };
+
+  const deleteServicePartner = async (partnerName) => {
+    if (!window.confirm(`Weet je zeker dat je servicepartner "${partnerName}" wilt verwijderen?`)) return;
+    const updatedPartners = servicepartners.filter(p => p !== partnerName);
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ servicepartners: updatedPartners })
+        });
+      } else {
+        await fetch(`${API_BASE}/configuratie`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ configuratie: { servicepartners: updatedPartners } })
+        });
+      }
+      setServicepartners(updatedPartners);
+      showToast(`Servicepartner "${partnerName}" verwijderd.`);
+    } catch (err) {
+      console.error("Fout bij verwijderen servicepartner:", err);
     }
   };
 
