@@ -63,6 +63,7 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showEquipmentForm, setShowEquipmentForm] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newServicePartnerName, setNewServicePartnerName] = useState('');
   
@@ -1180,6 +1181,13 @@ export default function App() {
                                 <td>
                                   <div className="flex gap-1">
                                     <button 
+                                      className="btn-icon-edit"
+                                      onClick={() => setEditingEquipment(eq)}
+                                      title="Bewerk apparaat"
+                                    >
+                                      <FileText size={16} />
+                                    </button>
+                                    <button 
                                       className="btn-icon-delete"
                                       onClick={() => deleteEquipment(eq.id)}
                                       title="Verwijder apparaat"
@@ -1233,6 +1241,45 @@ export default function App() {
                       <Plus size={14} />
                     </button>
                   </div>
+                </div>
+
+                <div className="register-sidebar-divider"></div>
+
+                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
+                  <Users size={18} /> Servicepartners Beheren
+                </div>
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  Voeg servicepartners toe of verwijder ze. Ze verschijnen direct in alle keuzelijsten in de app.
+                </p>
+                
+                <div className="field-list">
+                  {servicepartners.map(partner => (
+                    <div key={partner} className="field-item">
+                      <span>{partner}</span>
+                      <button className="btn-icon-delete" onClick={() => deleteServicePartner(partner)}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="form-inline">
+                  <input 
+                    type="text" 
+                    placeholder="Nieuwe servicepartner..." 
+                    className="search-input" 
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                    value={newServicePartnerName}
+                    onChange={(e) => setNewServicePartnerName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addServicePartner(newServicePartnerName)}
+                  />
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.4rem 0.75rem' }}
+                    onClick={() => addServicePartner(newServicePartnerName)}
+                  >
+                    <Plus size={14} />
+                  </button>
                 </div>
               </div>
             )}
@@ -1290,6 +1337,20 @@ export default function App() {
             await saveTask(task);
             
             setShowEquipmentForm(false);
+            fetchData();
+          }}
+        />
+      )}
+
+      {/* MODAL: EDIT EQUIPMENT / CLIENT */}
+      {editingEquipment && (
+        <NewEquipmentModal 
+          key={editingEquipment.id}
+          initialData={editingEquipment}
+          onClose={() => { setEditingEquipment(null); fetchData(); }}
+          onSave={async (eq) => {
+            await saveEquipment(eq);
+            setEditingEquipment(null);
             fetchData();
           }}
         />
@@ -1725,20 +1786,21 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
 // =============================================================================
 // SUB-COMPONENT: MODAL NEW EQUIPMENT / CLIENT
 // =============================================================================
-function NewEquipmentModal({ onClose, onSave }) {
-  const [type, setType] = useState('weegschaal');
-  const [naam, setNaam] = useState('');
-  const [locatie, setLocatie] = useState('');
-  const [model, setModel] = useState('');
-  const [serienummer, setSerienummer] = useState('');
-  const [weegbereik, setWeegbereik] = useState('');
-  const [nauwkeurigheid, setNauwkeurigheid] = useState('');
-  const [intervalMaanden, setIntervalMaanden] = useState(12);
-  const [contract, setContract] = useState(false);
-  const [contactpersoon, setContactpersoon] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactTelefoon, setContactTelefoon] = useState('');
-  const [bijzonderheden, setBijzonderheden] = useState('');
+function NewEquipmentModal({ onClose, onSave, initialData }) {
+  const isEditing = !!initialData;
+  const [type, setType] = useState(initialData?.type || 'weegschaal');
+  const [naam, setNaam] = useState(initialData?.naam || '');
+  const [locatie, setLocatie] = useState(initialData?.locatie || '');
+  const [model, setModel] = useState(initialData?.model || '');
+  const [serienummer, setSerienummer] = useState(initialData?.serienummer || '');
+  const [weegbereik, setWeegbereik] = useState(initialData?.weegbereik || '');
+  const [nauwkeurigheid, setNauwkeurigheid] = useState(initialData?.nauwkeurigheid || '');
+  const [intervalMaanden, setIntervalMaanden] = useState(initialData?.interval_maanden || 12);
+  const [contract, setContract] = useState(initialData?.contract || false);
+  const [contactpersoon, setContactpersoon] = useState(initialData?.contactpersoon || '');
+  const [contactEmail, setContactEmail] = useState(initialData?.contact_email || '');
+  const [contactTelefoon, setContactTelefoon] = useState(initialData?.contact_telefoon || '');
+  const [bijzonderheden, setBijzonderheden] = useState(initialData?.bijzonderheden || '');
 
   const handleSave = () => {
     if (!naam.trim() || !locatie.trim()) {
@@ -1746,7 +1808,7 @@ function NewEquipmentModal({ onClose, onSave }) {
       return;
     }
 
-    onSave({
+    const payload = {
       type,
       naam,
       locatie,
@@ -1760,15 +1822,21 @@ function NewEquipmentModal({ onClose, onSave }) {
       contact_email: contactEmail,
       contact_telefoon: contactTelefoon,
       bijzonderheden,
-      custom_fields: {}
-    });
+      custom_fields: initialData?.custom_fields || {}
+    };
+
+    if (isEditing) {
+      payload.id = initialData.id;
+    }
+
+    onSave(payload);
   };
 
   return (
     <div className="modal-backdrop">
       <div className="modal-content">
         <div className="modal-header">
-          <div className="modal-title">➕ Nieuwe Klant / Apparaat Registreren</div>
+          <div className="modal-title">{isEditing ? '✏️ Apparaat Bewerken' : '➕ Nieuwe Klant / Apparaat Registreren'}</div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
         
@@ -1862,7 +1930,7 @@ function NewEquipmentModal({ onClose, onSave }) {
 
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Annuleren</button>
-          <button className="btn-primary" onClick={handleSave}>Registreer & Plan Eerste Beurt</button>
+          <button className="btn-primary" onClick={handleSave}>{isEditing ? 'Wijzigingen Opslaan' : 'Registreer & Plan Eerste Beurt'}</button>
         </div>
       </div>
     </div>

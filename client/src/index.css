@@ -778,6 +778,28 @@ button, input, select, textarea {
   background: rgba(239, 68, 68, 0.1);
 }
 
+.btn-icon-edit {
+  background: transparent;
+  border: none;
+  color: var(--color-blue);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-edit:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.register-sidebar-divider {
+  height: 1px;
+  background: #2b354a;
+  margin: 1.5rem 0;
+}
+
 .form-inline {
   display: flex;
   gap: 0.5rem;
