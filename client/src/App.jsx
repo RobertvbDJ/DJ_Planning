@@ -69,6 +69,7 @@ export default function App() {
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newServicePartnerName, setNewServicePartnerName] = useState('');
+  const [editingServicePartner, setEditingServicePartner] = useState(null);
   const [newWeegschaalType, setNewWeegschaalType] = useState('');
   const [newMachineType, setNewMachineType] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -135,7 +136,7 @@ export default function App() {
           // If no settings exist yet, seed some defaults
           const defaultSettings = {
             id: 1,
-            servicepartners: ["WeegTechniek NL", "MilieuService Partners", "TechFix Industrie"],
+            servicepartners: [{id:"sp-1",name:"WeegTechniek NL",phone:"",email:""},{id:"sp-2",name:"MilieuService Partners",phone:"",email:""},{id:"sp-3",name:"TechFix Industrie",phone:"",email:""}],
             global_custom_fields: ["Contactpersoon TD", "Toegangscode hek", "Specifieke instructie technicus", "Certificaatnummer"],
             soort_weegschaal_opties: ["Vloerweegschaal","Palletweegschaal","Tafelweegschaal","Precisiebalans","Analytische balans","Kraanweegschaal","Weegbrug","Anders"],
             soort_machine_opties: ["Balenpers","Shredder","Containerpers","Kantelaar","Lintbanderol","Hydraulische pers","Anders"]
@@ -467,24 +468,25 @@ export default function App() {
   const addServicePartner = async (partnerName) => {
     const trimmed = partnerName.trim();
     if (!trimmed) return;
-    if (servicepartners.includes(trimmed)) {
+    if (servicepartners.some(p => p.name === trimmed)) {
       showToast("Deze servicepartner bestaat al.");
       return;
     }
     
-    const updatedPartners = [...servicepartners, trimmed];
+    const newPartner = {
+      id: 'sp-' + Date.now(),
+      name: trimmed,
+      phone: '',
+      email: '',
+      notes: ''
+    };
+    const updatedPartners = [...servicepartners, newPartner];
     try {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
           headers: getSupabaseHeaders(),
           body: JSON.stringify({ servicepartners: updatedPartners })
-        });
-      } else {
-        await fetch(`${API_BASE}/configuratie`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ configuratie: { servicepartners: updatedPartners } })
         });
       }
       setServicepartners(updatedPartners);
@@ -492,13 +494,13 @@ export default function App() {
       showToast(`Servicepartner "${trimmed}" toegevoegd!`);
     } catch (err) {
       console.error("Fout bij toevoegen servicepartner:", err);
-      showToast("Kon de servicepartner niet opslaan.");
     }
   };
 
-  const deleteServicePartner = async (partnerName) => {
-    if (!window.confirm(`Weet je zeker dat je servicepartner "${partnerName}" wilt verwijderen?`)) return;
-    const updatedPartners = servicepartners.filter(p => p !== partnerName);
+  const updateServicePartner = async (partnerId, updates) => {
+    const updatedPartners = servicepartners.map(p =>
+      p.id === partnerId ? { ...p, ...updates } : p
+    );
     try {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
@@ -506,15 +508,30 @@ export default function App() {
           headers: getSupabaseHeaders(),
           body: JSON.stringify({ servicepartners: updatedPartners })
         });
-      } else {
-        await fetch(`${API_BASE}/configuratie`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ configuratie: { servicepartners: updatedPartners } })
+      }
+      setServicepartners(updatedPartners);
+      setEditingServicePartner(null);
+      showToast(`Servicepartner bijgewerkt!`);
+    } catch (err) {
+      console.error("Fout bij bijwerken servicepartner:", err);
+    }
+  };
+
+  const deleteServicePartner = async (partnerId) => {
+    const partner = servicepartners.find(p => p.id === partnerId);
+    if (!partner) return;
+    if (!window.confirm(`Weet je zeker dat je "${partner.name}" wilt verwijderen?`)) return;
+    const updatedPartners = servicepartners.filter(p => p !== partner);
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ servicepartners: updatedPartners })
         });
       }
       setServicepartners(updatedPartners);
-      showToast(`Servicepartner "${partnerName}" verwijderd.`);
+      showToast(`Servicepartner "${partner.name}" verwijderd.`);
     } catch (err) {
       console.error("Fout bij verwijderen servicepartner:", err);
     }
@@ -638,7 +655,7 @@ export default function App() {
       prioriteit: task.prioriteit || 'medium',
       geplande_datum: nextPlannedDateStr,
       bezoekdatum: '',
-      servicepartner: task.servicepartner || servicepartners[0],
+      servicepartner: task.servicepartner || servicepartners[0]?.name || servicepartners[0],
       omschrijving: `Automatisch ingepland voor de volgende cyclus (${capitalizedMonth}).`
     };
     
@@ -970,7 +987,7 @@ export default function App() {
                       onChange={(e) => setFilterPartner(e.target.value)}
                     >
                       <option value="">Alle Servicepartners</option>
-                      {servicepartners.map(p => <option key={p} value={p}>{p}</option>)}
+                      {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
                     <select 
                       className="filter-select"
@@ -1056,7 +1073,7 @@ export default function App() {
                       onChange={(e) => setFilterPartner(e.target.value)}
                     >
                       <option value="">Alle Servicepartners</option>
-                      {servicepartners.map(p => <option key={p} value={p}>{p}</option>)}
+                      {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1180,14 +1197,15 @@ export default function App() {
                 </div>
 
                 {servicepartners.map(partner => {
-                  const partnerTasks = taken.filter(t => t.servicepartner === partner && t.status === 'opdracht_ontvangen');
+                  const partnerName = partner.name || partner;
+                  const partnerTasks = taken.filter(t => t.servicepartner === partnerName && t.status === 'opdracht_ontvangen');
                   const selectedCount = partnerTasks.filter(t => selectedBulkTasks[t.id]).length;
 
                   return (
-                    <div key={partner} className="partner-section">
+                    <div key={partner.id || partner} className="partner-section">
                       <div className="partner-header">
                         <div className="partner-title">
-                          <span>🤝 {partner}</span>
+                          <span>🤝 {partnerName}</span>
                           <span className="column-count" style={{ background: 'var(--color-blue-bg)', color: 'var(--color-blue)' }}>
                             {partnerTasks.length} openstaande opdrachten
                           </span>
@@ -1196,13 +1214,13 @@ export default function App() {
                           <div className="partner-actions">
                             <button 
                               className="btn-secondary"
-                              onClick={() => copyPartnerListToClipboard(partner, partnerTasks)}
+                              onClick={() => copyPartnerListToClipboard(partnerName, partnerTasks)}
                             >
                               <Copy size={16} /> Kopieer lijst voor E-mail
                             </button>
                             <button 
                               className="btn-primary"
-                              onClick={() => dispatchPartnerTasksBulk(partner, partnerTasks)}
+                              onClick={() => dispatchPartnerTasksBulk(partnerName, partnerTasks)}
                             >
                               <Send size={16} /> Markeer als doorgegeven ({selectedCount > 0 ? selectedCount : 'alle'})
                             </button>
@@ -1548,27 +1566,37 @@ export default function App() {
                 <div className="register-sidebar-divider"></div>
 
                 <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
-                  <Users size={18} /> Servicepartners Beheren
+                  <Users size={18} /> Servicepartners
                 </div>
-                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                  Voeg servicepartners toe of verwijder ze. Ze verschijnen direct in alle keuzelijsten in de app.
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+                  Klik op een partner om telefoon/e-mail te bewerken.
                 </p>
                 
-                <div className="field-list">
-                  {servicepartners.map(partner => (
-                    <div key={partner} className="field-item">
-                      <span>{partner}</span>
-                      <button className="btn-icon-delete" onClick={() => deleteServicePartner(partner)}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
+                <div className="sp-card-list">
+                  {servicepartners.map(partner => {
+                    const pName = partner.name || partner;
+                    return (
+                      <div key={partner.id || partner} className="sp-card" onClick={() => setEditingServicePartner(partner)}>
+                        <div className="sp-card-top">
+                          <span className="sp-card-name">{pName}</span>
+                          <button className="btn-icon-delete" onClick={(e) => { e.stopPropagation(); deleteServicePartner(partner.id || partner); }} title="Verwijder">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                        <div className="sp-card-details">
+                          {partner.phone && <span className="sp-badge-phone">📞 {partner.phone}</span>}
+                          {partner.email && <span className="sp-badge-email">✉ {partner.email}</span>}
+                          {!partner.phone && !partner.email && <span className="text-muted" style={{ fontSize: '0.7rem' }}>Klik om contactgegevens in te vullen</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="form-inline">
+                <div className="form-inline" style={{ marginTop: '0.75rem' }}>
                   <input 
                     type="text" 
-                    placeholder="Nieuwe servicepartner..." 
+                    placeholder="Partner toevoegen..." 
                     className="search-input" 
                     style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
                     value={newServicePartnerName}
@@ -1589,25 +1617,20 @@ export default function App() {
                 <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
                   <Wrench size={18} /> Weegschaal Types
                 </div>
-                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                  Beheer de beschikbare types in de "Soort Weegschaal" dropdown.
-                </p>
                 
-                <div className="field-list">
+                <div className="tag-list">
                   {soortWeegschaalOpties.map(opt => (
-                    <div key={opt} className="field-item">
+                    <div key={opt} className="tag-item">
                       <span>{opt}</span>
-                      <button className="btn-icon-delete" onClick={() => deleteWeegschaalType(opt)}>
-                        <Trash2 size={12} />
-                      </button>
+                      <button className="tag-remove" onClick={() => deleteWeegschaalType(opt)}>✕</button>
                     </div>
                   ))}
                 </div>
 
-                <div className="form-inline">
+                <div className="form-inline" style={{ marginTop: '0.5rem' }}>
                   <input 
                     type="text" 
-                    placeholder="Nieuw weegschaaltype..." 
+                    placeholder="Nieuw type..." 
                     className="search-input" 
                     style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
                     value={newWeegschaalType}
@@ -1628,25 +1651,20 @@ export default function App() {
                 <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
                   <Wrench size={18} /> Machine Types
                 </div>
-                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                  Beheer de beschikbare types in de "Soort Machine" dropdown.
-                </p>
                 
-                <div className="field-list">
+                <div className="tag-list">
                   {soortMachineOpties.map(opt => (
-                    <div key={opt} className="field-item">
+                    <div key={opt} className="tag-item">
                       <span>{opt}</span>
-                      <button className="btn-icon-delete" onClick={() => deleteMachineType(opt)}>
-                        <Trash2 size={12} />
-                      </button>
+                      <button className="tag-remove" onClick={() => deleteMachineType(opt)}>✕</button>
                     </div>
                   ))}
                 </div>
 
-                <div className="form-inline">
+                <div className="form-inline" style={{ marginTop: '0.5rem' }}>
                   <input 
                     type="text" 
-                    placeholder="Nieuw machinetype..." 
+                    placeholder="Nieuw type..." 
                     className="search-input" 
                     style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
                     value={newMachineType}
@@ -1713,7 +1731,7 @@ export default function App() {
               prioriteit: 'medium',
               geplande_datum: baseDate.toISOString().split('T')[0],
               bezoekdatum: '',
-              servicepartner: servicepartners[0],
+              servicepartner: servicepartners[0]?.name || servicepartners[0],
               omschrijving: 'Eerste periodieke taak na toevoegen apparaat.'
             };
             await saveTask(task);
@@ -1774,12 +1792,25 @@ export default function App() {
               prioriteit: 'medium',
               geplande_datum: baseDate.toISOString().split('T')[0],
               bezoekdatum: '',
-              servicepartner: servicepartners[0],
+              servicepartner: servicepartners[0]?.name || servicepartners[0],
               omschrijving: 'Eerste periodieke taak na toevoegen apparaat.'
             };
             await saveTask(task);
             setShowMachineFormForCustomer(null);
             fetchData();
+          }}
+        />
+      )}
+
+      {/* MODAL: EDIT SERVICE PARTNER */}
+      {editingServicePartner && (
+        <ServicePartnerFormModal
+          key={editingServicePartner.id || editingServicePartner}
+          partner={editingServicePartner}
+          onClose={() => setEditingServicePartner(null)}
+          onSave={async (id, updates) => {
+            await updateServicePartner(id, updates);
+            setEditingServicePartner(null);
           }}
         />
       )}
@@ -2056,7 +2087,7 @@ function TaskDetailModal({ task, apparatuur, servicepartners, globalCustomFields
             <div className="form-group">
               <label>Servicepartner (Uitvoerder)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
-                {servicepartners.map(p => <option key={p} value={p}>{p}</option>)}
+                {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
             </div>
 
@@ -2105,7 +2136,7 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
   const [titel, setTitel] = useState('');
   const [prioriteit, setPrioriteit] = useState('high');
   const [geplandeDatum, setGeplandeDatum] = useState(new Date().toISOString().split('T')[0]);
-  const [servicepartner, setServicepartner] = useState(servicepartners[0] || '');
+  const [servicepartner, setServicepartner] = useState(servicepartners[0]?.name || servicepartners[0] || '');
   const [omschrijving, setOmschrijving] = useState('');
 
   const handleSave = () => {
@@ -2185,7 +2216,7 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
             <div className="form-group form-grid-full">
               <label>Servicepartner (TD)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
-                {servicepartners.map(p => <option key={p} value={p}>{p}</option>)}
+                {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
             </div>
 
@@ -2467,6 +2498,58 @@ function CustomerFormModal({ onClose, onSave, initialData }) {
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Annuleren</button>
           <button className="btn-primary" onClick={handleSave}>{isEditing ? 'Wijzigingen Opslaan' : 'Klant Aanmaken'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// SUB-COMPONENT: SERVICE PARTNER FORM MODAL
+// =============================================================================
+function ServicePartnerFormModal({ partner, onClose, onSave }) {
+  const partnerData = partner.name ? partner : { name: partner, phone: '', email: '', notes: '' };
+  const [name, setName] = useState(partnerData.name || '');
+  const [phone, setPhone] = useState(partnerData.phone || '');
+  const [email, setEmail] = useState(partnerData.email || '');
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      alert("Naam is verplicht.");
+      return;
+    }
+    onSave(partner.id || partner, { name: name.trim(), phone, email });
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-content" style={{ maxWidth: '480px' }}>
+        <div className="modal-header">
+          <div className="modal-title">✏️ Servicepartner Bewerken</div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+        
+        <div className="modal-body">
+          <div className="section-title-in-modal">🤝 Contactgegevens</div>
+          <div className="form-grid">
+            <div className="form-group form-grid-full">
+              <label>Bedrijfsnaam *</label>
+              <input type="text" className="form-control" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Telefoonnummer</label>
+              <input type="text" className="form-control" placeholder="Bijv. 06-12345678" value={phone} onChange={e => setPhone(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>E-mailadres</label>
+              <input type="email" className="form-control" placeholder="partner@bedrijf.nl" value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Annuleren</button>
+          <button className="btn-primary" onClick={handleSave}>Opslaan</button>
         </div>
       </div>
     </div>

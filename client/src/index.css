@@ -1144,3 +1144,104 @@ textarea.form-control {
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
+
+/* === SERVICE PARTNER CARDS (SIDEBAR) === */
+.sp-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sp-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sp-card:hover {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.sp-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.sp-card-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.sp-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-height: 1.2rem;
+}
+
+.sp-badge-phone {
+  font-size: 0.68rem;
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.sp-badge-email {
+  font-size: 0.68rem;
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* === TAG LIST (SIDEBAR) === */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  color: var(--text-secondary);
+  transition: border-color 0.15s ease;
+}
+
+.tag-item:hover {
+  border-color: var(--color-red);
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.tag-remove:hover {
+  color: var(--color-red);
+}
