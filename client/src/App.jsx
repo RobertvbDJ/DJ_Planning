@@ -987,7 +987,9 @@ export default function App() {
                       onChange={(e) => setFilterPartner(e.target.value)}
                     >
                       <option value="">Alle Servicepartners</option>
-                      {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
+                      {servicepartners
+  .filter(p => p && (typeof p === 'string' || p.name))
+  .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
                     <select 
                       className="filter-select"
@@ -1073,7 +1075,9 @@ export default function App() {
                       onChange={(e) => setFilterPartner(e.target.value)}
                     >
                       <option value="">Alle Servicepartners</option>
-                      {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
+                      {servicepartners
+  .filter(p => p && (typeof p === 'string' || p.name))
+  .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1196,7 +1200,7 @@ export default function App() {
                   </p>
                 </div>
 
-                {servicepartners.map(partner => {
+                {servicepartners.filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
                   const partnerName = partner.name || partner;
                   const partnerTasks = taken.filter(t => t.servicepartner === partnerName && t.status === 'opdracht_ontvangen');
                   const selectedCount = partnerTasks.filter(t => selectedBulkTasks[t.id]).length;
@@ -1573,7 +1577,7 @@ export default function App() {
                 </p>
                 
                 <div className="sp-card-list">
-                  {servicepartners.map(partner => {
+                  {servicepartners.filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
                     const pName = partner.name || partner;
                     return (
                       <div key={partner.id || partner} className="sp-card" onClick={() => setEditingServicePartner(partner)}>
@@ -2112,7 +2116,9 @@ function TaskDetailModal({ task, apparatuur, servicepartners, globalCustomFields
             <div className="form-group">
               <label>Servicepartner (Uitvoerder)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
-                {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
+                {servicepartners
+  .filter(p => p && (typeof p === 'string' || p.name))
+  .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
             </div>
 
@@ -2251,7 +2257,9 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
             <div className="form-group form-grid-full">
               <label>Servicepartner (TD)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
-                {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
+                {servicepartners
+  .filter(p => p && (typeof p === 'string' || p.name))
+  .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
             </div>
           </div>
