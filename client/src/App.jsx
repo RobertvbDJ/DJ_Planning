@@ -988,6 +988,7 @@ export default function App() {
                     >
                       <option value="">Alle Servicepartners</option>
                       {servicepartners
+  .map(p => { try { return typeof p === 'string' && (p.startsWith('{') || p.startsWith('[')) ? JSON.parse(p) : p; } catch(e) { return p; } })
   .filter(p => p && (typeof p === 'string' || p.name))
   .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
@@ -1076,6 +1077,7 @@ export default function App() {
                     >
                       <option value="">Alle Servicepartners</option>
                       {servicepartners
+  .map(p => { try { return typeof p === 'string' && (p.startsWith('{') || p.startsWith('[')) ? JSON.parse(p) : p; } catch(e) { return p; } })
   .filter(p => p && (typeof p === 'string' || p.name))
   .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
                     </select>
@@ -1578,6 +1580,7 @@ export default function App() {
                 
                 <div className="sp-card-list">
                   {servicepartners.filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
+                  const p = (() => { try { return typeof partner === 'string' && (partner.startsWith('{') || partner.startsWith('[')) ? JSON.parse(partner) : partner; } catch(e) { return partner; } })();
                     const pName = partner.name || partner;
                     return (
                       <div key={partner.id || partner} className="sp-card" onClick={() => setEditingServicePartner(partner)}>
@@ -2117,6 +2120,7 @@ function TaskDetailModal({ task, apparatuur, servicepartners, globalCustomFields
               <label>Servicepartner (Uitvoerder)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
                 {servicepartners
+  .map(p => { try { return typeof p === 'string' && (p.startsWith('{') || p.startsWith('[')) ? JSON.parse(p) : p; } catch(e) { return p; } })
   .filter(p => p && (typeof p === 'string' || p.name))
   .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
@@ -2258,6 +2262,7 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
               <label>Servicepartner (TD)</label>
               <select className="form-control" value={servicepartner} onChange={e => setServicepartner(e.target.value)}>
                 {servicepartners
+  .map(p => { try { return typeof p === 'string' && (p.startsWith('{') || p.startsWith('[')) ? JSON.parse(p) : p; } catch(e) { return p; } })
   .filter(p => p && (typeof p === 'string' || p.name))
   .map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
