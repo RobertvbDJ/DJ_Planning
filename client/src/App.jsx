@@ -49,6 +49,7 @@ export default function App() {
   const [toast, setToast] = useState('');
   
   // Data States
+  const [klanten, setKlanten] = useState([]);
   const [apparatuur, setApparatuur] = useState([]);
   const [taken, setTaken] = useState([]);
   const [servicepartners, setServicepartners] = useState([]);
@@ -66,6 +67,10 @@ export default function App() {
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newServicePartnerName, setNewServicePartnerName] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [showMachineFormForCustomer, setShowMachineFormForCustomer] = useState(null); // klant_id or null
   
   // Tab 4 Selection State
   const [selectedBulkTasks, setSelectedBulkTasks] = useState({});
@@ -97,18 +102,23 @@ export default function App() {
         // --- CLOUD MODE: FETCH FROM SUPABASE DIRECTLY ---
         const headers = getSupabaseHeaders();
         
-        // 1. Fetch Apparatuur
+        // 1. Fetch Klanten
+        const klantRes = await fetch(`${SUPABASE_URL}/rest/v1/klanten?select=*`, { headers });
+        const klantData = await klantRes.json();
+        
+        // 2. Fetch Apparatuur
         const appRes = await fetch(`${SUPABASE_URL}/rest/v1/apparatuur?select=*`, { headers });
         const appData = await appRes.json();
         
-        // 2. Fetch Taken
+        // 3. Fetch Taken
         const taskRes = await fetch(`${SUPABASE_URL}/rest/v1/taken?select=*`, { headers });
         const taskData = await taskRes.json();
         
-        // 3. Fetch Settings / Configuration
+        // 4. Fetch Settings / Configuration
         const settingsRes = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=*&limit=1`, { headers });
         const settingsData = await settingsRes.json();
         
+        setKlanten(klantData || []);
         setApparatuur(appData || []);
         setTaken(taskData || []);
         
@@ -305,6 +315,82 @@ export default function App() {
     } catch (err) {
       console.error("Fout bij verwijderen apparaat:", err);
       showToast("Kon het apparaat niet verwijderen.");
+    }
+  };
+
+  // ==========================================
+  // SAVE CUSTOMER (DUAL-MODE)
+  // ==========================================
+  const saveCustomer = async (klantData) => {
+    try {
+      const isNew = !klantData.id;
+      let saved;
+      
+      if (IS_CLOUD_MODE) {
+        const headers = getSupabaseHeaders();
+        if (isNew) {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/klanten`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...klantData, id: 'klant-' + Date.now() })
+          });
+          const list = await res.json();
+          saved = list[0];
+          setKlanten(prev => [...prev, saved]);
+        } else {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/klanten?id=eq.${klantData.id}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(klantData)
+          });
+          const list = await res.json();
+          saved = list[0] || klantData;
+          setKlanten(prev => prev.map(k => k.id === saved.id ? saved : k));
+        }
+      } else {
+        // Local mode - placeholder
+        saved = klantData;
+        if (isNew) {
+          setKlanten(prev => [...prev, saved]);
+        } else {
+          setKlanten(prev => prev.map(k => k.id === saved.id ? saved : k));
+        }
+      }
+      
+      showToast(isNew ? "Nieuwe klant succesvol aangemaakt!" : "Klant succesvol bijgewerkt!");
+      return saved;
+    } catch (err) {
+      console.error("Fout bij opslaan klant:", err);
+      showToast("Fout opgetreden bij het opslaan van de klant.");
+    }
+  };
+
+  const deleteCustomer = async (klantId) => {
+    if (!window.confirm("Weet je zeker dat je deze klant en alle bijbehorende apparatuur en taken wilt verwijderen?")) return;
+    try {
+      if (IS_CLOUD_MODE) {
+        const headers = getSupabaseHeaders();
+        // Delete all equipment for this customer (cascade deletes tasks)
+        const eqs = apparatuur.filter(e => e.klant_id === klantId);
+        for (const eq of eqs) {
+          await fetch(`${SUPABASE_URL}/rest/v1/taken?equipment_id=eq.${eq.id}`, { method: 'DELETE', headers });
+          await fetch(`${SUPABASE_URL}/rest/v1/apparatuur?id=eq.${eq.id}`, { method: 'DELETE', headers });
+        }
+        // Delete the customer
+        await fetch(`${SUPABASE_URL}/rest/v1/klanten?id=eq.${klantId}`, { method: 'DELETE', headers });
+      } else {
+        // Local mode placeholder
+      }
+      
+      setKlanten(prev => prev.filter(k => k.id !== klantId));
+      const eqIds = apparatuur.filter(e => e.klant_id === klantId).map(e => e.id);
+      setApparatuur(prev => prev.filter(e => !eqIds.includes(e.id)));
+      setTaken(prev => prev.filter(t => !eqIds.includes(t.equipment_id)));
+      setSelectedCustomer(null);
+      showToast("Klant en bijbehorende apparatuur verwijderd.");
+    } catch (err) {
+      console.error("Fout bij verwijderen klant:", err);
+      showToast("Kon de klant niet verwijderen.");
     }
   };
 
@@ -726,8 +812,8 @@ export default function App() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="btn-secondary" onClick={() => setShowEquipmentForm(true)}>
-            <Plus size={16} /> Apparaat Toevoegen
+          <button className="btn-secondary" onClick={() => { setActiveTab('register'); setShowCustomerForm(true); }}>
+            <Plus size={16} /> Nieuwe Klant
           </button>
           <button className="btn-primary" onClick={() => setShowTaskForm(true)}>
             <Plus size={16} /> Storing / Taak Melden
@@ -1113,94 +1199,222 @@ export default function App() {
             {activeTab === 'register' && (
               <div className="register-layout">
                 <div className="register-main">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Klanten & Apparaten Register ({apparatuur.length})</h2>
+                  {/* ---- LEFT: CUSTOMER LIST ---- */}
+                  <div className="customer-list-panel">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h2 style={{ fontSize: '1.1rem', fontWeight: '700' }}>Klanten ({klanten.length})</h2>
+                      <button className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }} onClick={() => setShowCustomerForm(true)}>
+                        <Plus size={14} /> Nieuwe Klant
+                      </button>
+                    </div>
                     <input 
                       type="text" 
-                      placeholder="Zoek in register..."
+                      placeholder="Zoek klant..." 
                       className="search-input"
+                      style={{ marginBottom: '0.75rem' }}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    <div className="customer-cards">
+                      {klanten
+                        .filter(k => k.bedrijfsnaam?.toLowerCase().includes(searchTerm.toLowerCase()) || k.locatie?.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map(klant => {
+                          const machineCount = apparatuur.filter(e => e.klant_id === klant.id).length;
+                          const isSelected = selectedCustomer?.id === klant.id;
+                          return (
+                            <div 
+                              key={klant.id} 
+                              className={`customer-card ${isSelected ? 'selected' : ''}`}
+                              onClick={() => setSelectedCustomer(klant)}
+                            >
+                              <div className="customer-card-header">
+                                <div className="customer-card-name">{klant.bedrijfsnaam || 'Onbekende klant'}</div>
+                                {klant.contract && <span className="badge badge-contract" style={{ fontSize: '0.65rem' }}>★ Contract</span>}
+                              </div>
+                              {klant.locatie && (
+                                <div className="customer-card-locatie">
+                                  <MapPin size={12} /> {klant.locatie}
+                                </div>
+                              )}
+                              <div className="customer-card-meta">
+                                <span className="customer-card-count">{machineCount} machine{machineCount !== 1 ? 's' : ''}</span>
+                                {klant.contactpersoon && <span className="text-muted">{klant.contactpersoon}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      {klanten.length === 0 && (
+                        <div className="empty-state" style={{ padding: '2rem', textAlign: 'center' }}>
+                          <p className="text-muted">Nog geen klanten. Maak je eerste klant aan!</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="dispatch-table-container">
-                    <table className="dispatch-table">
-                      <thead>
-                        <tr>
-                          <th>Naam & Locatie</th>
-                          <th>Type</th>
-                          <th>Model & S/N</th>
-                          <th>Interval</th>
-                          <th>Status / Cyclus</th>
-                          <th>Contract</th>
-                          <th style={{ width: '80px' }}>Acties</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {apparatuur
-                          .filter(e => e.naam.toLowerCase().includes(searchTerm.toLowerCase()) || e.locatie.toLowerCase().includes(searchTerm.toLowerCase()))
-                          .map(eq => {
-                            const activeTask = taken.find(t => t.equipment_id === eq.id && t.status !== 'afgerond' && t.status !== 'klant_wil_niet');
-                            return (
-                              <tr key={eq.id}>
-                                <td>
-                                  <div style={{ fontWeight: '600' }}>{eq.naam}</div>
-                                  <div className="text-secondary" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <MapPin size={12} /> {eq.locatie}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className={`badge badge-${eq.type === 'weegschaal' ? 'kalibratie' : 'onderhoud'}`}>
-                                    {eq.type === 'weegschaal' ? 'Weegschaal' : 'Afvalmachine'}
-                                  </span>
-                                </td>
-                                <td style={{ fontSize: '0.8rem' }}>
-                                  <div>Model: {eq.model || 'N.v.t.'}</div>
-                                  <div className="text-muted" style={{ fontSize: '0.7rem' }}>S/N: {eq.serienummer || 'N.v.t.'}</div>
-                                </td>
-                                <td style={{ fontSize: '0.8rem', fontWeight: '500' }}>
-                                  {eq.interval_maanden === 6 ? '2x per jaar (6m)' : '1x per jaar (12m)'}
-                                </td>
-                                <td>
-                                  {activeTask ? (
-                                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#242c3f', border: '1px solid #3b4866', borderRadius: '4px', display: 'inline-block' }}>
-                                      Actief: {activeTask.status.replace(/_/g, ' ')}
-                                    </span>
-                                  ) : (
-                                    <span style={{ color: 'var(--color-green)', fontSize: '0.75rem', fontWeight: '600' }}>🟢 Gereed voor cyclus</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {eq.contract ? (
-                                    <span className="badge badge-contract">Contract</span>
-                                  ) : (
-                                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>Nee</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <div className="flex gap-1">
-                                    <button 
-                                      className="btn-icon-edit"
-                                      onClick={() => setEditingEquipment(eq)}
-                                      title="Bewerk apparaat"
-                                    >
-                                      <FileText size={16} />
-                                    </button>
-                                    <button 
-                                      className="btn-icon-delete"
-                                      onClick={() => deleteEquipment(eq.id)}
-                                      title="Verwijder apparaat"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
-                                </td>
+                  {/* ---- RIGHT: SELECTED CUSTOMER DETAIL ---- */}
+                  <div className="customer-detail-panel">
+                    {selectedCustomer ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                          <div>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.25rem' }}>{selectedCustomer.bedrijfsnaam}</h2>
+                            {selectedCustomer.locatie && (
+                              <div className="text-secondary" style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <MapPin size={14} /> {selectedCustomer.locatie}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-1">
+                            <button className="btn-secondary" style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }} onClick={() => setEditingCustomer(selectedCustomer)}>
+                              <FileText size={14} /> Bewerk
+                            </button>
+                            <button className="btn-secondary" style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', color: 'var(--color-red)' }} onClick={() => deleteCustomer(selectedCustomer.id)}>
+                              <Trash2 size={14} /> Verwijder
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedCustomer.contactpersoon && (
+                          <div className="customer-contact-info">
+                            <div><User size={14} /> {selectedCustomer.contactpersoon}</div>
+                            {selectedCustomer.contact_telefoon && <div><Phone size={14} /> {selectedCustomer.contact_telefoon}</div>}
+                            {selectedCustomer.contact_email && <div><Mail size={14} /> {selectedCustomer.contact_email}</div>}
+                          </div>
+                        )}
+
+                        {selectedCustomer.bijzonderheden && (
+                          <div className="customer-notes">
+                            <Info size={14} /> {selectedCustomer.bijzonderheden}
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '0.75rem' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: '600' }}>
+                            Machines & Apparatuur ({apparatuur.filter(e => e.klant_id === selectedCustomer.id).length})
+                          </h3>
+                          <button className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }} onClick={() => setShowMachineFormForCustomer(selectedCustomer.id)}>
+                            <Plus size={14} /> Machine Toevoegen
+                          </button>
+                        </div>
+
+                        <div className="dispatch-table-container">
+                          <table className="dispatch-table">
+                            <thead>
+                              <tr>
+                                <th>Machine</th>
+                                <th>Merk / Type</th>
+                                <th>S/N</th>
+                                <th>Specificaties</th>
+                                <th>Interval</th>
+                                <th>Locatie</th>
+                                <th style={{ width: '70px' }}>Acties</th>
                               </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                              {apparatuur
+                                .filter(e => e.klant_id === selectedCustomer.id)
+                                .map(eq => (
+                                  <tr key={eq.id}>
+                                    <td>
+                                      <div style={{ fontWeight: '600', fontSize: '0.85rem' }}>
+                                        {eq.naam || eq.merk || 'Onbekend'}
+                                      </div>
+                                      <span className={`badge badge-${eq.type === 'weegschaal' ? 'kalibratie' : 'onderhoud'}`} style={{ fontSize: '0.65rem' }}>
+                                        {eq.type === 'weegschaal' ? (eq.soort_weegschaal || 'Weegschaal') : (eq.soort_machine || 'Afvalmachine')}
+                                      </span>
+                                    </td>
+                                    <td style={{ fontSize: '0.8rem' }}>
+                                      <div>Merk: {eq.merk || eq.model?.split(' ')[0] || 'N.v.t.'}</div>
+                                      <div className="text-muted" style={{ fontSize: '0.7rem' }}>Type: {eq.type_nummer || eq.model || 'N.v.t.'}</div>
+                                    </td>
+                                    <td style={{ fontSize: '0.8rem' }}>{eq.serienummer || 'N.v.t.'}</td>
+                                    <td style={{ fontSize: '0.75rem' }}>
+                                      {eq.type === 'weegschaal' ? (
+                                        <>
+                                          {eq.capaciteit && <div>Cap: {eq.capaciteit}</div>}
+                                          {eq.indeling_d && <div>d: {eq.indeling_d}</div>}
+                                        </>
+                                      ) : (
+                                        eq.soort_machine || '-'
+                                      )}
+                                    </td>
+                                    <td style={{ fontSize: '0.8rem' }}>
+                                      {eq.interval_maanden === 6 ? '2x/jaar' : '1x/jaar'}
+                                    </td>
+                                    <td style={{ fontSize: '0.75rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <MapPin size={10} /> {eq.locatie || 'N.v.t.'}
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div className="flex gap-1">
+                                        <button className="btn-icon-edit" onClick={() => setEditingEquipment(eq)} title="Bewerk">
+                                          <FileText size={14} />
+                                        </button>
+                                        <button className="btn-icon-delete" onClick={() => deleteEquipment(eq.id)} title="Verwijder">
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              {apparatuur.filter(e => e.klant_id === selectedCustomer.id).length === 0 && (
+                                <tr>
+                                  <td colSpan="7" className="text-center text-muted" style={{ padding: '2rem' }}>
+                                    Nog geen machines voor deze klant. Klik op "Machine Toevoegen".
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Show active tasks for this customer */}
+                        {(() => {
+                          const eqIds = apparatuur.filter(e => e.klant_id === selectedCustomer.id).map(e => e.id);
+                          const actieveTaken = taken.filter(t => eqIds.includes(t.equipment_id) && t.status !== 'afgerond' && t.status !== 'klant_wil_niet');
+                          if (actieveTaken.length === 0) return null;
+                          return (
+                            <div style={{ marginTop: '1.5rem' }}>
+                              <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>Actieve Planningen & Storingen ({actieveTaken.length})</h3>
+                              <div className="dispatch-table-container">
+                                <table className="dispatch-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Taak</th>
+                                      <th>Type</th>
+                                      <th>Status</th>
+                                      <th>Datum</th>
+                                      <th>Partner</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {actieveTaken.map(task => {
+                                      const eq = apparatuur.find(e => e.id === task.equipment_id);
+                                      return (
+                                        <tr key={task.id} onClick={() => setSelectedTask(task)} style={{ cursor: 'pointer' }}>
+                                          <td style={{ fontWeight: '500' }}>{task.titel}</td>
+                                          <td><span className={`badge badge-${task.type}`}>{task.type}</span></td>
+                                          <td style={{ fontSize: '0.8rem' }}>{task.status.replace(/_/g, ' ')}</td>
+                                          <td style={{ fontSize: '0.8rem' }}>{new Date(task.geplande_datum).toLocaleDateString('nl-NL')}</td>
+                                          <td style={{ fontSize: '0.8rem' }}>{task.servicepartner}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      <div className="empty-state" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <Users size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
+                        <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>Selecteer een klant</h3>
+                        <p className="text-muted" style={{ fontSize: '0.85rem' }}>Kies links een klant om de machines en planningen te bekijken, of maak een nieuwe klant aan.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1351,6 +1565,48 @@ export default function App() {
           onSave={async (eq) => {
             await saveEquipment(eq);
             setEditingEquipment(null);
+            fetchData();
+          }}
+        />
+      )}
+
+      {/* MODAL: CUSTOMER FORM */}
+      {(showCustomerForm || editingCustomer) && (
+        <CustomerFormModal
+          key={editingCustomer?.id || 'new'}
+          initialData={editingCustomer}
+          onClose={() => { setShowCustomerForm(false); setEditingCustomer(null); fetchData(); }}
+          onSave={async (data) => {
+            await saveCustomer(data);
+            setShowCustomerForm(false);
+            setEditingCustomer(null);
+            fetchData();
+          }}
+        />
+      )}
+
+      {/* MODAL: NEW MACHINE FOR CUSTOMER */}
+      {showMachineFormForCustomer && (
+        <NewEquipmentModal 
+          key={'machine-' + showMachineFormForCustomer}
+          klantId={showMachineFormForCustomer}
+          onClose={() => { setShowMachineFormForCustomer(null); fetchData(); }}
+          onSave={async (eq) => {
+            const savedEq = await saveEquipment(eq);
+            const baseDate = new Date();
+            const task = {
+              equipment_id: savedEq.id,
+              titel: `${savedEq.type === 'weegschaal' ? 'Kalibratie' : 'Periodiek Onderhoud'} ${savedEq.naam || eq.merk}`,
+              type: savedEq.type === 'weegschaal' ? 'kalibratie' : 'onderhoud',
+              status: 'te_benaderen',
+              prioriteit: 'medium',
+              geplande_datum: baseDate.toISOString().split('T')[0],
+              bezoekdatum: '',
+              servicepartner: servicepartners[0],
+              omschrijving: 'Eerste periodieke taak na toevoegen apparaat.'
+            };
+            await saveTask(task);
+            setShowMachineFormForCustomer(null);
             fetchData();
           }}
         />
@@ -1786,21 +2042,19 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
 // =============================================================================
 // SUB-COMPONENT: MODAL NEW EQUIPMENT / CLIENT
 // =============================================================================
-function NewEquipmentModal({ onClose, onSave, initialData }) {
+function NewEquipmentModal({ onClose, onSave, initialData, klantId }) {
   const isEditing = !!initialData;
   const [type, setType] = useState(initialData?.type || 'weegschaal');
   const [naam, setNaam] = useState(initialData?.naam || '');
   const [locatie, setLocatie] = useState(initialData?.locatie || '');
-  const [model, setModel] = useState(initialData?.model || '');
+  const [merk, setMerk] = useState(initialData?.merk || initialData?.model?.split(' ')[0] || '');
+  const [typeNummer, setTypeNummer] = useState(initialData?.type_nummer || initialData?.model || '');
   const [serienummer, setSerienummer] = useState(initialData?.serienummer || '');
-  const [weegbereik, setWeegbereik] = useState(initialData?.weegbereik || '');
-  const [nauwkeurigheid, setNauwkeurigheid] = useState(initialData?.nauwkeurigheid || '');
+  const [capaciteit, setCapaciteit] = useState(initialData?.capaciteit || initialData?.weegbereik || '');
+  const [indelingD, setIndelingD] = useState(initialData?.indeling_d || initialData?.nauwkeurigheid || '');
+  const [soortWeegschaal, setSoortWeegschaal] = useState(initialData?.soort_weegschaal || '');
+  const [soortMachine, setSoortMachine] = useState(initialData?.soort_machine || '');
   const [intervalMaanden, setIntervalMaanden] = useState(initialData?.interval_maanden || 12);
-  const [contract, setContract] = useState(initialData?.contract || false);
-  const [contactpersoon, setContactpersoon] = useState(initialData?.contactpersoon || '');
-  const [contactEmail, setContactEmail] = useState(initialData?.contact_email || '');
-  const [contactTelefoon, setContactTelefoon] = useState(initialData?.contact_telefoon || '');
-  const [bijzonderheden, setBijzonderheden] = useState(initialData?.bijzonderheden || '');
 
   const handleSave = () => {
     if (!naam.trim() || !locatie.trim()) {
@@ -1812,15 +2066,172 @@ function NewEquipmentModal({ onClose, onSave, initialData }) {
       type,
       naam,
       locatie,
-      model,
+      merk,
+      type_nummer: typeNummer,
       serienummer,
-      weegbereik: type === 'weegschaal' ? weegbereik : 'N.v.t.',
-      nauwkeurigheid: type === 'weegschaal' ? nauwkeurigheid : 'N.v.t.',
+      capaciteit: type === 'weegschaal' ? capaciteit : 'N.v.t.',
+      indeling_d: type === 'weegschaal' ? indelingD : 'N.v.t.',
+      soort_weegschaal: type === 'weegschaal' ? soortWeegschaal : null,
+      soort_machine: type === 'afvalmachine' ? soortMachine : null,
       interval_maanden: parseInt(intervalMaanden, 10),
-      contract,
+      custom_fields: initialData?.custom_fields || {}
+    };
+
+    if (klantId) {
+      payload.klant_id = klantId;
+    }
+
+    if (isEditing) {
+      payload.id = initialData.id;
+    }
+
+    onSave(payload);
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-content">
+        <div className="modal-header">
+          <div className="modal-title">{isEditing ? '✏️ Machine Bewerken' : klantId ? '➕ Nieuwe Machine Toevoegen' : '➕ Nieuwe Machine Registreren'}</div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+        
+        <div className="modal-body">
+          <div className="section-title-in-modal">🏷️ Machine Basis</div>
+          <div className="form-grid">
+            <div className="form-group form-grid-full">
+              <label>Type Machine</label>
+              <select className="form-control" value={type} onChange={e => setType(e.target.value)}>
+                <option value="weegschaal">🟢 Weegschaal (Kalibratie)</option>
+                <option value="afvalmachine">🔵 Afvalbewerkingsmachine (Onderhoud & Keuring)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Naam / Omschrijving *</label>
+              <input type="text" className="form-control" placeholder="Bijv. Mettler Toledo Bench Scale..." value={naam} onChange={e => setNaam(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>Locatie bij klant *</label>
+              <input type="text" className="form-control" placeholder="Bijv. Hal A - Inpak..." value={locatie} onChange={e => setLocatie(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="section-title-in-modal">🔧 Merk & Identificatie</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Merk</label>
+              <input type="text" className="form-control" placeholder="Bijv. Mettler Toledo" value={merk} onChange={e => setMerk(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Typenummer</label>
+              <input type="text" className="form-control" placeholder="Bijv. ICS465" value={typeNummer} onChange={e => setTypeNummer(e.target.value)} />
+            </div>
+            <div className="form-group form-grid-full">
+              <label>Serienummer</label>
+              <input type="text" className="form-control" placeholder="Bijv. MT-988371-B" value={serienummer} onChange={e => setSerienummer(e.target.value)} />
+            </div>
+          </div>
+
+          {type === 'weegschaal' && (
+            <>
+              <div className="section-title-in-modal">⚖️ Weegschaal Specificaties</div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Capaciteit (weegbereik)</label>
+                  <input type="text" className="form-control" placeholder="Bijv: 0 - 60 kg" value={capaciteit} onChange={e => setCapaciteit(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Indeling (d)</label>
+                  <input type="text" className="form-control" placeholder="Bijv: 5 g" value={indelingD} onChange={e => setIndelingD(e.target.value)} />
+                </div>
+                <div className="form-group form-grid-full">
+                  <label>Soort Weegschaal</label>
+                  <select className="form-control" value={soortWeegschaal} onChange={e => setSoortWeegschaal(e.target.value)}>
+                    <option value="">-- Selecteer --</option>
+                    <option value="Vloerweegschaal">Vloerweegschaal</option>
+                    <option value="Palletweegschaal">Palletweegschaal</option>
+                    <option value="Tafelweegschaal">Tafelweegschaal</option>
+                    <option value="Precisiebalans">Precisiebalans</option>
+                    <option value="Analytische balans">Analytische balans</option>
+                    <option value="Kraanweegschaal">Kraanweegschaal</option>
+                    <option value="Weegbrug">Weegbrug</option>
+                    <option value="Anders">Anders</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {type === 'afvalmachine' && (
+            <>
+              <div className="section-title-in-modal">🔩 Machine Specificaties</div>
+              <div className="form-grid">
+                <div className="form-group form-grid-full">
+                  <label>Soort Machine</label>
+                  <select className="form-control" value={soortMachine} onChange={e => setSoortMachine(e.target.value)}>
+                    <option value="">-- Selecteer --</option>
+                    <option value="Balenpers">Balenpers</option>
+                    <option value="Shredder">Shredder / Versnipperaar</option>
+                    <option value="Containerpers">Containerpers</option>
+                    <option value="Kantelaar">Kantelaar</option>
+                    <option value="Lintbanderol">Lintbanderol</option>
+                    <option value="Hydraulische pers">Hydraulische pers</option>
+                    <option value="Anders">Anders</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="section-title-in-modal">📅 Planning & Interval</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Terugkerend Interval</label>
+              <select className="form-control" value={intervalMaanden} onChange={e => setIntervalMaanden(e.target.value)}>
+                <option value="12">1x per jaar (elke 12 maanden)</option>
+                <option value="6">2x per jaar (elke 6 maanden)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Annuleren</button>
+          <button className="btn-primary" onClick={handleSave}>{isEditing ? 'Wijzigingen Opslaan' : 'Machine Toevoegen & Plan Eerste Beurt'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// SUB-COMPONENT: CUSTOMER FORM MODAL
+// =============================================================================
+function CustomerFormModal({ onClose, onSave, initialData }) {
+  const isEditing = !!initialData;
+  const [bedrijfsnaam, setBedrijfsnaam] = useState(initialData?.bedrijfsnaam || '');
+  const [locatie, setLocatie] = useState(initialData?.locatie || '');
+  const [contactpersoon, setContactpersoon] = useState(initialData?.contactpersoon || '');
+  const [contactEmail, setContactEmail] = useState(initialData?.contact_email || '');
+  const [contactTelefoon, setContactTelefoon] = useState(initialData?.contact_telefoon || '');
+  const [contract, setContract] = useState(initialData?.contract || false);
+  const [bijzonderheden, setBijzonderheden] = useState(initialData?.bijzonderheden || '');
+
+  const handleSave = () => {
+    if (!bedrijfsnaam.trim()) {
+      alert("Bedrijfsnaam is verplicht.");
+      return;
+    }
+
+    const payload = {
+      bedrijfsnaam,
+      locatie,
       contactpersoon,
       contact_email: contactEmail,
       contact_telefoon: contactTelefoon,
+      contract,
       bijzonderheden,
       custom_fields: initialData?.custom_fields || {}
     };
@@ -1836,29 +2247,21 @@ function NewEquipmentModal({ onClose, onSave, initialData }) {
     <div className="modal-backdrop">
       <div className="modal-content">
         <div className="modal-header">
-          <div className="modal-title">{isEditing ? '✏️ Apparaat Bewerken' : '➕ Nieuwe Klant / Apparaat Registreren'}</div>
+          <div className="modal-title">{isEditing ? '✏️ Klant Bewerken' : '➕ Nieuwe Klant Aanmaken'}</div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
         
         <div className="modal-body">
-          <div className="section-title-in-modal">🏷️ Apparaat Categorie & Basis</div>
+          <div className="section-title-in-modal">🏢 Klantgegevens</div>
           <div className="form-grid">
             <div className="form-group form-grid-full">
-              <label>Type Apparaat</label>
-              <select className="form-control" value={type} onChange={e => setType(e.target.value)}>
-                <option value="weegschaal">🟢 Weegschaal (Kalibratie workflow)</option>
-                <option value="afvalmachine">🔵 Afvalbewerkingsmachine (Onderhoud & Keuring workflow)</option>
-              </select>
+              <label>Bedrijfsnaam *</label>
+              <input type="text" className="form-control" placeholder="Bijv. Afvalverwerking Voorbeeld BV" value={bedrijfsnaam} onChange={e => setBedrijfsnaam(e.target.value)} />
             </div>
 
-            <div className="form-group">
-              <label>Naam Klant / Apparaat *</label>
-              <input type="text" className="form-control" placeholder="Bijv. Mettler Scale Hal A..." value={naam} onChange={e => setNaam(e.target.value)} />
-            </div>
-
-            <div className="form-group">
-              <label>Locatie *</label>
-              <input type="text" className="form-control" placeholder="Bijv. Expeditie laadperron..." value={locatie} onChange={e => setLocatie(e.target.value)} />
+            <div className="form-group form-grid-full">
+              <label>Vestigingslocatie / Adres</label>
+              <input type="text" className="form-control" placeholder="Bijv. Industrieweg 15, Amsterdam" value={locatie} onChange={e => setLocatie(e.target.value)} />
             </div>
           </div>
 
@@ -1866,71 +2269,41 @@ function NewEquipmentModal({ onClose, onSave, initialData }) {
           <div className="form-grid">
             <div className="form-group">
               <label>Contactpersoon</label>
-              <input type="text" className="form-control" value={contactpersoon} onChange={e => setContactpersoon(e.target.value)} />
+              <input type="text" className="form-control" placeholder="Bijv. Marc de Vries" value={contactpersoon} onChange={e => setContactpersoon(e.target.value)} />
             </div>
             <div className="form-group">
               <label>Telefoonnummer</label>
-              <input type="text" className="form-control" value={contactTelefoon} onChange={e => setContactTelefoon(e.target.value)} />
+              <input type="text" className="form-control" placeholder="Bijv. 06-12345678" value={contactTelefoon} onChange={e => setContactTelefoon(e.target.value)} />
             </div>
             <div className="form-group form-grid-full">
               <label>E-mailadres</label>
-              <input type="email" className="form-control" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+              <input type="email" className="form-control" placeholder="contact@voorbeeld.nl" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
             </div>
           </div>
 
-          <div className="section-title-in-modal">🔧 Specificaties & Interval</div>
+          <div className="section-title-in-modal">📋 Contract & Notities</div>
           <div className="form-grid">
-            <div className="form-group">
-              <label>Model / Type</label>
-              <input type="text" className="form-control" value={model} onChange={e => setModel(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Serienummer</label>
-              <input type="text" className="form-control" value={serienummer} onChange={e => setSerienummer(e.target.value)} />
-            </div>
-
-            {type === 'weegschaal' && (
-              <>
-                <div className="form-group">
-                  <label>Weegbereik</label>
-                  <input type="text" className="form-control" placeholder="Bijv: 0 - 60 kg" value={weegbereik} onChange={e => setWeegbereik(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label>Nauwkeurigheid</label>
-                  <input type="text" className="form-control" placeholder="Bijv: 5 g" value={nauwkeurigheid} onChange={e => setNauwkeurigheid(e.target.value)} />
-                </div>
-              </>
-            )}
-
-            <div className="form-group">
-              <label>Terugkerend Interval</label>
-              <select className="form-control" value={intervalMaanden} onChange={e => setIntervalMaanden(e.target.value)}>
-                <option value="12">1x per jaar (elke 12 maanden)</option>
-                <option value="6">2x per jaar (elke 6 maanden)</option>
-              </select>
-            </div>
-
-            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
               <input 
                 type="checkbox" 
-                id="new-contract" 
+                id="cust-contract" 
                 className="checkbox-custom" 
                 checked={contract} 
                 onChange={e => setContract(e.target.checked)} 
               />
-              <label htmlFor="new-contract" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>★ Deze klant heeft een Contract</label>
+              <label htmlFor="cust-contract" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>★ Deze klant heeft een Servicecontract</label>
             </div>
 
             <div className="form-group form-grid-full">
-              <label>Algemene Opmerkingen / Bijzonderheden</label>
-              <textarea className="form-control" placeholder="Specifieke klantsituatie..." value={bijzonderheden} onChange={e => setBijzonderheden(e.target.value)}></textarea>
+              <label>Algemene Notities / Bijzonderheden</label>
+              <textarea className="form-control" placeholder="Specifieke klantinformatie..." value={bijzonderheden} onChange={e => setBijzonderheden(e.target.value)}></textarea>
             </div>
           </div>
         </div>
 
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Annuleren</button>
-          <button className="btn-primary" onClick={handleSave}>{isEditing ? 'Wijzigingen Opslaan' : 'Registreer & Plan Eerste Beurt'}</button>
+          <button className="btn-primary" onClick={handleSave}>{isEditing ? 'Wijzigingen Opslaan' : 'Klant Aanmaken'}</button>
         </div>
       </div>
     </div>

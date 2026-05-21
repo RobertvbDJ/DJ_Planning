@@ -721,6 +721,9 @@ button, input, select, textarea {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
 }
 
 .register-sidebar {
@@ -1027,4 +1030,117 @@ textarea.form-control {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-color-hover);
+}
+
+/* === CUSTOMER LAYOUT (TAB 5) === */
+.customer-list-panel {
+  width: 320px;
+  min-width: 320px;
+  border-right: 1px solid var(--border-color);
+  padding-right: 1rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+}
+
+.customer-detail-panel {
+  flex: 1;
+  padding-left: 1.5rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+}
+
+.customer-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.customer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.customer-card:hover {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.customer-card.selected {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.customer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.customer-card-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.customer-card-locatie {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.customer-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.customer-card-count {
+  font-weight: 500;
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.customer-contact-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.customer-contact-info div {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.customer-notes {
+  padding: 0.75rem;
+  background: #1e2433;
+  border: 1px solid #3b4866;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
