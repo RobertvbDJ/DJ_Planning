@@ -1823,6 +1823,8 @@ export default function App() {
 // =============================================================================
 function TaskCard({ task, apparatuur, onDragStart, onClick, overdue, upcoming }) {
   const eq = apparatuur.find(e => e.id === task.equipment_id) || {};
+  const eqList = task.apparatuur_lijst || [];
+  const eersteApparaat = eqList.length > 0 ? eqList[0] : null;
   
   return (
     <div 
@@ -1841,12 +1843,12 @@ function TaskCard({ task, apparatuur, onDragStart, onClick, overdue, upcoming })
         <div className={`priority-indicator priority-${task.prioriteit || 'medium'}`} title={`Prioriteit: ${task.prioriteit || 'medium'}`}></div>
       </div>
       
-      <div className="card-title">{eq.naam || 'Onbekend apparaat'}</div>
+      <div className="card-title">{eq.naam || (eersteApparaat?.merk || '') + ' ' + (eersteApparaat?.type_nummer || '') || 'Onbekend apparaat'}</div>
       
       <div className="card-details">
         <div className="card-detail-item">
           <MapPin size={12} />
-          <span>{eq.locatie || 'Geen locatie'}</span>
+          <span>{eq.locatie || eersteApparaat?.locatie || 'Geen locatie'}</span>
         </div>
         {task.bezoekdatum ? (
           <div className="card-detail-item" style={{ color: 'var(--color-green)', fontWeight: '600' }}>
@@ -1866,6 +1868,7 @@ function TaskCard({ task, apparatuur, onDragStart, onClick, overdue, upcoming })
           {overdue ? '⚠️ Overdue' : upcoming ? '⏳ Binnenkort' : '📅 Planning'}
         </span>
         <span className="card-partner">
+          {eqList.length > 1 && <span style={{ fontWeight: '600', marginRight: '0.35rem' }}>{eqList.length}x </span>}
           {task.servicepartner || 'Geen TD'}
         </span>
       </div>
@@ -2046,6 +2049,28 @@ function TaskDetailModal({ task, apparatuur, servicepartners, globalCustomFields
             </>
           )}
 
+          {/* Show apparatuur_lijst from task */}
+          {task.apparatuur_lijst && task.apparatuur_lijst.length > 0 && (
+            <>
+              <div className="section-title-in-modal">🔧 Apparaten op deze Taak ({task.apparatuur_lijst.length})</div>
+              <div style={{ marginBottom: '1rem' }}>
+                {task.apparatuur_lijst.map((app, idx) => (
+                  <div key={idx} className="apparaat-row" style={{ fontSize: '0.8rem' }}>
+                    <div className="apparaat-row-header">
+                      <span className="apparaat-row-nr">{idx + 1}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem' }}>
+                      <div><span className="text-muted">Merk:</span> {app.merk || '-'}</div>
+                      <div><span className="text-muted">Type:</span> {app.type_nummer || '-'}</div>
+                      <div><span className="text-muted">Serienummer:</span> {app.serienummer || '-'}</div>
+                      <div><span className="text-muted">Locatie:</span> {app.locatie || '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           <div className="section-title-in-modal">📅 Huidige Planningsstatus</div>
           <div className="form-grid">
             <div className="form-group">
@@ -2132,12 +2157,24 @@ function TaskDetailModal({ task, apparatuur, servicepartners, globalCustomFields
 // =============================================================================
 function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
   const [type, setType] = useState('storing');
-  const [equipmentId, setEquipmentId] = useState(apparatuur[0]?.id || '');
   const [titel, setTitel] = useState('');
   const [prioriteit, setPrioriteit] = useState('high');
   const [geplandeDatum, setGeplandeDatum] = useState(new Date().toISOString().split('T')[0]);
   const [servicepartner, setServicepartner] = useState(servicepartners[0]?.name || servicepartners[0] || '');
   const [omschrijving, setOmschrijving] = useState('');
+  const [apparaten, setApparaten] = useState([{ key: Date.now(), merk: '', type_nummer: '', serienummer: '', locatie: '' }]);
+
+  const addApparaat = () => {
+    setApparaten(prev => [...prev, { key: Date.now(), merk: '', type_nummer: '', serienummer: '', locatie: '' }]);
+  };
+
+  const removeApparaat = (key) => {
+    setApparaten(prev => prev.filter(a => a.key !== key));
+  };
+
+  const updateApparaat = (key, field, value) => {
+    setApparaten(prev => prev.map(a => a.key === key ? { ...a, [field]: value } : a));
+  };
 
   const handleSave = () => {
     if (!titel.trim()) {
@@ -2145,8 +2182,16 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
       return;
     }
     
+    const apparatuurLijst = apparaten
+      .filter(a => a.merk.trim() || a.type_nummer.trim() || a.serienummer.trim())
+      .map(a => ({
+        merk: a.merk.trim(),
+        type_nummer: a.type_nummer.trim(),
+        serienummer: a.serienummer.trim(),
+        locatie: a.locatie.trim()
+      }));
+
     onSave({
-      equipment_id: equipmentId,
       titel,
       type,
       status: type === 'storing' ? 'te_plannen' : 'te_benaderen',
@@ -2154,13 +2199,14 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
       geplande_datum: geplandeDatum,
       bezoekdatum: '',
       servicepartner,
-      omschrijving
+      omschrijving,
+      apparatuur_lijst: apparatuurLijst.length > 0 ? apparatuurLijst : null
     });
   };
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content" style={{ maxWidth: '600px' }}>
+      <div className="modal-content" style={{ maxWidth: '700px' }}>
         <div className="modal-header">
           <div className="modal-title">➕ Nieuwe Melding / Storing Invoeren</div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
@@ -2174,17 +2220,6 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
                 <option value="storing">⚠️ Storing & Reparatie (Ad-hoc op locatie)</option>
                 <option value="kalibratie">🟢 Kalibratie Cyclus (Weegschaal)</option>
                 <option value="onderhoud">🔵 Periodiek Onderhoud & Keuring (Machine)</option>
-              </select>
-            </div>
-
-            <div className="form-group form-grid-full">
-              <label>Koppel aan Apparaat / Klant</label>
-              <select className="form-control" value={equipmentId} onChange={e => setEquipmentId(e.target.value)}>
-                {apparatuur.map(e => (
-                  <option key={e.id} value={e.id}>
-                    {e.naam} - {e.locatie} ({e.type})
-                  </option>
-                ))}
               </select>
             </div>
 
@@ -2219,17 +2254,57 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
                 {servicepartners.map(p => <option key={p.id || p} value={p.name || p}>{p.name || p}</option>)}
               </select>
             </div>
+          </div>
 
-            <div className="form-group form-grid-full">
-              <label>Omschrijving probleem / Extra opmerkingen</label>
-              <textarea 
-                className="form-control" 
-                rows="3" 
-                placeholder="Vul hier alle relevante storingsinformatie in voor de technicus..."
-                value={omschrijving} 
-                onChange={e => setOmschrijving(e.target.value)}
-              ></textarea>
+          <div className="section-title-in-modal" style={{ marginTop: '1rem' }}>🔧 Apparaten / Weegschalen</div>
+          <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+            Voeg hier de apparaten in waar deze taak voor geldt. Je kunt meerdere apparaten toevoegen.
+          </p>
+
+          {apparaten.map((apparaat, idx) => (
+            <div key={apparaat.key} className="apparaat-row">
+              <div className="apparaat-row-header">
+                <span className="apparaat-row-nr">Apparaat {idx + 1}</span>
+                {apparaten.length > 1 && (
+                  <button className="btn-icon-delete" onClick={() => removeApparaat(apparaat.key)} title="Verwijder">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <div className="form-group">
+                  <label>Merk</label>
+                  <input type="text" className="form-control" placeholder="Bijv. Mettler Toledo" value={apparaat.merk} onChange={e => updateApparaat(apparaat.key, 'merk', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Type / Model</label>
+                  <input type="text" className="form-control" placeholder="Bijv. ICS465" value={apparaat.type_nummer} onChange={e => updateApparaat(apparaat.key, 'type_nummer', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Serienummer</label>
+                  <input type="text" className="form-control" placeholder="Bijv. MT-988371-B" value={apparaat.serienummer} onChange={e => updateApparaat(apparaat.key, 'serienummer', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Locatie bij klant</label>
+                  <input type="text" className="form-control" placeholder="Bijv. Hal A" value={apparaat.locatie} onChange={e => updateApparaat(apparaat.key, 'locatie', e.target.value)} />
+                </div>
+              </div>
             </div>
+          ))}
+
+          <button className="btn-secondary" style={{ marginTop: '0.5rem', width: '100%', padding: '0.5rem' }} onClick={addApparaat}>
+            <Plus size={14} /> Nog een apparaat toevoegen
+          </button>
+
+          <div className="form-group form-grid-full" style={{ marginTop: '1rem' }}>
+            <label>Omschrijving probleem / Extra opmerkingen</label>
+            <textarea 
+              className="form-control" 
+              rows="3" 
+              placeholder="Vul hier alle relevante storingsinformatie in voor de technicus..."
+              value={omschrijving} 
+              onChange={e => setOmschrijving(e.target.value)}
+            ></textarea>
           </div>
         </div>
 
