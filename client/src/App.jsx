@@ -54,6 +54,8 @@ export default function App() {
   const [taken, setTaken] = useState([]);
   const [servicepartners, setServicepartners] = useState([]);
   const [globalCustomFields, setGlobalCustomFields] = useState([]);
+  const [soortWeegschaalOpties, setSoortWeegschaalOpties] = useState([]);
+  const [soortMachineOpties, setSoortMachineOpties] = useState([]);
   
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +69,8 @@ export default function App() {
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [newFieldName, setNewFieldName] = useState('');
   const [newServicePartnerName, setNewServicePartnerName] = useState('');
+  const [newWeegschaalType, setNewWeegschaalType] = useState('');
+  const [newMachineType, setNewMachineType] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -125,12 +129,16 @@ export default function App() {
         if (settingsData && settingsData.length > 0) {
           setServicepartners(settingsData[0].servicepartners || []);
           setGlobalCustomFields(settingsData[0].global_custom_fields || []);
+          setSoortWeegschaalOpties(settingsData[0].soort_weegschaal_opties || ["Vloerweegschaal","Palletweegschaal","Tafelweegschaal","Precisiebalans","Analytische balans","Kraanweegschaal","Weegbrug","Anders"]);
+          setSoortMachineOpties(settingsData[0].soort_machine_opties || ["Balenpers","Shredder","Containerpers","Kantelaar","Lintbanderol","Hydraulische pers","Anders"]);
         } else {
           // If no settings exist yet, seed some defaults
           const defaultSettings = {
             id: 1,
             servicepartners: ["WeegTechniek NL", "MilieuService Partners", "TechFix Industrie"],
-            global_custom_fields: ["Contactpersoon TD", "Toegangscode hek", "Specifieke instructie technicus", "Certificaatnummer"]
+            global_custom_fields: ["Contactpersoon TD", "Toegangscode hek", "Specifieke instructie technicus", "Certificaatnummer"],
+            soort_weegschaal_opties: ["Vloerweegschaal","Palletweegschaal","Tafelweegschaal","Precisiebalans","Analytische balans","Kraanweegschaal","Weegbrug","Anders"],
+            soort_machine_opties: ["Balenpers","Shredder","Containerpers","Kantelaar","Lintbanderol","Hydraulische pers","Anders"]
           };
           
           await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
@@ -509,6 +517,86 @@ export default function App() {
       showToast(`Servicepartner "${partnerName}" verwijderd.`);
     } catch (err) {
       console.error("Fout bij verwijderen servicepartner:", err);
+    }
+  };
+
+  // ==========================================
+  // MANAGE SOORT WEEGSCHAAL OPTIES (DUAL-MODE)
+  // ==========================================
+  const addWeegschaalType = async (typeName) => {
+    const trimmed = typeName.trim();
+    if (!trimmed) return;
+    const updatedOpties = [...soortWeegschaalOpties, trimmed];
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ soort_weegschaal_opties: updatedOpties })
+        });
+      }
+      setSoortWeegschaalOpties(updatedOpties);
+      setNewWeegschaalType('');
+      showToast(`Weegschaaltype "${trimmed}" toegevoegd!`);
+    } catch (err) {
+      console.error("Fout bij toevoegen weegschaaltype:", err);
+    }
+  };
+
+  const deleteWeegschaalType = async (typeName) => {
+    const updatedOpties = soortWeegschaalOpties.filter(o => o !== typeName);
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ soort_weegschaal_opties: updatedOpties })
+        });
+      }
+      setSoortWeegschaalOpties(updatedOpties);
+      showToast(`Weegschaaltype "${typeName}" verwijderd.`);
+    } catch (err) {
+      console.error("Fout bij verwijderen weegschaaltype:", err);
+    }
+  };
+
+  // ==========================================
+  // MANAGE SOORT MACHINE OPTIES (DUAL-MODE)
+  // ==========================================
+  const addMachineType = async (typeName) => {
+    const trimmed = typeName.trim();
+    if (!trimmed) return;
+    const updatedOpties = [...soortMachineOpties, trimmed];
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ soort_machine_opties: updatedOpties })
+        });
+      }
+      setSoortMachineOpties(updatedOpties);
+      setNewMachineType('');
+      showToast(`Machinetype "${trimmed}" toegevoegd!`);
+    } catch (err) {
+      console.error("Fout bij toevoegen machinetype:", err);
+    }
+  };
+
+  const deleteMachineType = async (typeName) => {
+    const updatedOpties = soortMachineOpties.filter(o => o !== typeName);
+    try {
+      if (IS_CLOUD_MODE) {
+        await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ soort_machine_opties: updatedOpties })
+        });
+      }
+      setSoortMachineOpties(updatedOpties);
+      showToast(`Machinetype "${typeName}" verwijderd.`);
+    } catch (err) {
+      console.error("Fout bij verwijderen machinetype:", err);
     }
   };
 
@@ -1495,6 +1583,84 @@ export default function App() {
                     <Plus size={14} />
                   </button>
                 </div>
+
+                <div className="register-sidebar-divider"></div>
+
+                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
+                  <Wrench size={18} /> Weegschaal Types
+                </div>
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  Beheer de beschikbare types in de "Soort Weegschaal" dropdown.
+                </p>
+                
+                <div className="field-list">
+                  {soortWeegschaalOpties.map(opt => (
+                    <div key={opt} className="field-item">
+                      <span>{opt}</span>
+                      <button className="btn-icon-delete" onClick={() => deleteWeegschaalType(opt)}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="form-inline">
+                  <input 
+                    type="text" 
+                    placeholder="Nieuw weegschaaltype..." 
+                    className="search-input" 
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                    value={newWeegschaalType}
+                    onChange={(e) => setNewWeegschaalType(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addWeegschaalType(newWeegschaalType)}
+                  />
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.4rem 0.75rem' }}
+                    onClick={() => addWeegschaalType(newWeegschaalType)}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+
+                <div className="register-sidebar-divider"></div>
+
+                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
+                  <Wrench size={18} /> Machine Types
+                </div>
+                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  Beheer de beschikbare types in de "Soort Machine" dropdown.
+                </p>
+                
+                <div className="field-list">
+                  {soortMachineOpties.map(opt => (
+                    <div key={opt} className="field-item">
+                      <span>{opt}</span>
+                      <button className="btn-icon-delete" onClick={() => deleteMachineType(opt)}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="form-inline">
+                  <input 
+                    type="text" 
+                    placeholder="Nieuw machinetype..." 
+                    className="search-input" 
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                    value={newMachineType}
+                    onChange={(e) => setNewMachineType(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addMachineType(newMachineType)}
+                  />
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.4rem 0.75rem' }}
+                    onClick={() => addMachineType(newMachineType)}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -1533,6 +1699,8 @@ export default function App() {
       {showEquipmentForm && (
         <NewEquipmentModal 
           onClose={() => setShowEquipmentForm(false)}
+          soortWeegschaalOpties={soortWeegschaalOpties}
+          soortMachineOpties={soortMachineOpties}
           onSave={async (eq) => {
             const savedEq = await saveEquipment(eq);
             
@@ -1561,6 +1729,8 @@ export default function App() {
         <NewEquipmentModal 
           key={editingEquipment.id}
           initialData={editingEquipment}
+          soortWeegschaalOpties={soortWeegschaalOpties}
+          soortMachineOpties={soortMachineOpties}
           onClose={() => { setEditingEquipment(null); fetchData(); }}
           onSave={async (eq) => {
             await saveEquipment(eq);
@@ -1590,6 +1760,8 @@ export default function App() {
         <NewEquipmentModal 
           key={'machine-' + showMachineFormForCustomer}
           klantId={showMachineFormForCustomer}
+          soortWeegschaalOpties={soortWeegschaalOpties}
+          soortMachineOpties={soortMachineOpties}
           onClose={() => { setShowMachineFormForCustomer(null); fetchData(); }}
           onSave={async (eq) => {
             const savedEq = await saveEquipment(eq);
@@ -2042,7 +2214,7 @@ function NewTaskModal({ apparatuur, servicepartners, onClose, onSave }) {
 // =============================================================================
 // SUB-COMPONENT: MODAL NEW EQUIPMENT / CLIENT
 // =============================================================================
-function NewEquipmentModal({ onClose, onSave, initialData, klantId }) {
+function NewEquipmentModal({ onClose, onSave, initialData, klantId, soortWeegschaalOpties, soortMachineOpties }) {
   const isEditing = !!initialData;
   const [type, setType] = useState(initialData?.type || 'weegschaal');
   const [naam, setNaam] = useState(initialData?.naam || '');
@@ -2150,14 +2322,9 @@ function NewEquipmentModal({ onClose, onSave, initialData, klantId }) {
                   <label>Soort Weegschaal</label>
                   <select className="form-control" value={soortWeegschaal} onChange={e => setSoortWeegschaal(e.target.value)}>
                     <option value="">-- Selecteer --</option>
-                    <option value="Vloerweegschaal">Vloerweegschaal</option>
-                    <option value="Palletweegschaal">Palletweegschaal</option>
-                    <option value="Tafelweegschaal">Tafelweegschaal</option>
-                    <option value="Precisiebalans">Precisiebalans</option>
-                    <option value="Analytische balans">Analytische balans</option>
-                    <option value="Kraanweegschaal">Kraanweegschaal</option>
-                    <option value="Weegbrug">Weegbrug</option>
-                    <option value="Anders">Anders</option>
+                    {(soortWeegschaalOpties || []).map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2172,13 +2339,9 @@ function NewEquipmentModal({ onClose, onSave, initialData, klantId }) {
                   <label>Soort Machine</label>
                   <select className="form-control" value={soortMachine} onChange={e => setSoortMachine(e.target.value)}>
                     <option value="">-- Selecteer --</option>
-                    <option value="Balenpers">Balenpers</option>
-                    <option value="Shredder">Shredder / Versnipperaar</option>
-                    <option value="Containerpers">Containerpers</option>
-                    <option value="Kantelaar">Kantelaar</option>
-                    <option value="Lintbanderol">Lintbanderol</option>
-                    <option value="Hydraulische pers">Hydraulische pers</option>
-                    <option value="Anders">Anders</option>
+                    {(soortMachineOpties || []).map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
               </div>
