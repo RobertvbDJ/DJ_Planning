@@ -1,0 +1,1 @@
+{"query": "update settings set servicepartners = (select jsonb_agg(case when jsonb_typeof(val) = 'string' then case when val #>> '{}' like '{%' then (val #>> '{}')::jsonb else jsonb_build_object('id', 'sp-' || floor(random() * 999999)::text, 'name', val #>> '{}', 'phone', '', 'email', '') end else val end) from jsonb_array_elements(servicepartners) as val) where id = 1;"}

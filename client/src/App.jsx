@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import LoginPage from './LoginPage';
 import { 
   Calendar, 
   Columns, 
@@ -35,14 +37,15 @@ const IS_CLOUD_MODE = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
 const API_BASE = '/api';
 
 // Headers helper for Supabase
-const getSupabaseHeaders = () => ({
+const getSupabaseHeaders = (token) => ({
   'Content-Type': 'application/json',
   'apikey': SUPABASE_ANON_KEY,
-  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+  'Authorization': `Bearer ${token || SUPABASE_ANON_KEY}`,
   'Prefer': 'return=representation'
 });
 
 export default function App() {
+  const { user, profile, loading: authLoading, logout } = useAuth();
   // Navigation & UI States
   const [activeTab, setActiveTab] = useState('planning');
   const [loading, setLoading] = useState(true);
@@ -76,6 +79,8 @@ export default function App() {
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showMachineFormForCustomer, setShowMachineFormForCustomer] = useState(null); // klant_id or null
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarSection, setSidebarSection] = useState(''); // 'fields', 'partners', 'weegschaal', 'machine'
   
   // Tab 4 Selection State
   const [selectedBulkTasks, setSelectedBulkTasks] = useState({});
@@ -83,8 +88,22 @@ export default function App() {
   // Calendar Date State
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
 
-  // Drag over column helper
   const [draggedOverColumn, setDraggedOverColumn] = useState(null);
+
+  if (authLoading) {
+    return (
+      <div className="login-container">
+        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+          <Clock size={48} className="animate-spin" />
+          <p>Sessie controleren...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
 
   // Fetch initial data
   useEffect(() => {
@@ -105,7 +124,9 @@ export default function App() {
       
       if (IS_CLOUD_MODE) {
         // --- CLOUD MODE: FETCH FROM SUPABASE DIRECTLY ---
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         
         // 1. Fetch Klanten
         const klantRes = await fetch(`${SUPABASE_URL}/rest/v1/klanten?select=*`, { headers });
@@ -176,7 +197,9 @@ export default function App() {
       let saved;
       
       if (IS_CLOUD_MODE) {
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         if (isNew) {
           // Create task in Supabase
           const res = await fetch(`${SUPABASE_URL}/rest/v1/taken`, {
@@ -233,9 +256,11 @@ export default function App() {
     if (!window.confirm("Weet je zeker dat je deze planningstaak wilt verwijderen?")) return;
     try {
       if (IS_CLOUD_MODE) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
         await fetch(`${SUPABASE_URL}/rest/v1/taken?id=eq.${taskId}`, {
           method: 'DELETE',
-          headers: getSupabaseHeaders()
+          headers: getSupabaseHeaders(token)
         });
       } else {
         await fetch(`${API_BASE}/taken/${taskId}`, { method: 'DELETE' });
@@ -258,7 +283,9 @@ export default function App() {
       let saved;
       
       if (IS_CLOUD_MODE) {
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         if (isNew) {
           const res = await fetch(`${SUPABASE_URL}/rest/v1/apparatuur`, {
             method: 'POST',
@@ -309,7 +336,9 @@ export default function App() {
     if (!window.confirm("Weet je zeker dat je dit apparaat en alle gekoppelde taken wilt verwijderen?")) return;
     try {
       if (IS_CLOUD_MODE) {
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         // Delete equipment
         await fetch(`${SUPABASE_URL}/rest/v1/apparatuur?id=eq.${eqId}`, { method: 'DELETE', headers });
         // Delete associated tasks
@@ -336,7 +365,9 @@ export default function App() {
       let saved;
       
       if (IS_CLOUD_MODE) {
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         if (isNew) {
           const res = await fetch(`${SUPABASE_URL}/rest/v1/klanten`, {
             method: 'POST',
@@ -378,7 +409,9 @@ export default function App() {
     if (!window.confirm("Weet je zeker dat je deze klant en alle bijbehorende apparatuur en taken wilt verwijderen?")) return;
     try {
       if (IS_CLOUD_MODE) {
-        const headers = getSupabaseHeaders();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers = getSupabaseHeaders(token);
         // Delete all equipment for this customer (cascade deletes tasks)
         const eqs = apparatuur.filter(e => e.klant_id === klantId);
         for (const eq of eqs) {
@@ -407,6 +440,8 @@ export default function App() {
   // MANAGE GLOBAL CUSTOM FIELDS (DUAL-MODE)
   // ==========================================
   const addGlobalCustomField = async (fieldName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const trimmed = fieldName.trim();
     if (!trimmed) return;
     if (globalCustomFields.includes(trimmed)) {
@@ -419,7 +454,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ global_custom_fields: updatedFields })
         });
       } else {
@@ -439,13 +474,15 @@ export default function App() {
   };
 
   const deleteGlobalCustomField = async (fieldName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     if (!window.confirm(`Weet je zeker dat je het veld "${fieldName}" systeembreed wilt verwijderen?`)) return;
     const updatedFields = globalCustomFields.filter(f => f !== fieldName);
     try {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ global_custom_fields: updatedFields })
         });
       } else {
@@ -466,6 +503,8 @@ export default function App() {
   // MANAGE SERVICE PARTNERS (DUAL-MODE)
   // ==========================================
   const addServicePartner = async (partnerName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const trimmed = partnerName.trim();
     if (!trimmed) return;
     if (servicepartners.some(p => p.name === trimmed)) {
@@ -485,7 +524,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ servicepartners: updatedPartners })
         });
       }
@@ -498,6 +537,8 @@ export default function App() {
   };
 
   const updateServicePartner = async (partnerId, updates) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const updatedPartners = servicepartners.map(p =>
       p.id === partnerId ? { ...p, ...updates } : p
     );
@@ -505,7 +546,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ servicepartners: updatedPartners })
         });
       }
@@ -518,6 +559,8 @@ export default function App() {
   };
 
   const deleteServicePartner = async (partnerId) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const partner = servicepartners.find(p => p.id === partnerId);
     if (!partner) return;
     if (!window.confirm(`Weet je zeker dat je "${partner.name}" wilt verwijderen?`)) return;
@@ -526,7 +569,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ servicepartners: updatedPartners })
         });
       }
@@ -541,6 +584,8 @@ export default function App() {
   // MANAGE SOORT WEEGSCHAAL OPTIES (DUAL-MODE)
   // ==========================================
   const addWeegschaalType = async (typeName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const trimmed = typeName.trim();
     if (!trimmed) return;
     const updatedOpties = [...soortWeegschaalOpties, trimmed];
@@ -548,7 +593,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ soort_weegschaal_opties: updatedOpties })
         });
       }
@@ -561,12 +606,14 @@ export default function App() {
   };
 
   const deleteWeegschaalType = async (typeName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const updatedOpties = soortWeegschaalOpties.filter(o => o !== typeName);
     try {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ soort_weegschaal_opties: updatedOpties })
         });
       }
@@ -581,6 +628,8 @@ export default function App() {
   // MANAGE SOORT MACHINE OPTIES (DUAL-MODE)
   // ==========================================
   const addMachineType = async (typeName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const trimmed = typeName.trim();
     if (!trimmed) return;
     const updatedOpties = [...soortMachineOpties, trimmed];
@@ -588,7 +637,7 @@ export default function App() {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ soort_machine_opties: updatedOpties })
         });
       }
@@ -601,12 +650,14 @@ export default function App() {
   };
 
   const deleteMachineType = async (typeName) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
     const updatedOpties = soortMachineOpties.filter(o => o !== typeName);
     try {
       if (IS_CLOUD_MODE) {
         await fetch(`${SUPABASE_URL}/rest/v1/settings?id=eq.1`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: getSupabaseHeaders(token),
           body: JSON.stringify({ soort_machine_opties: updatedOpties })
         });
       }
@@ -900,7 +951,9 @@ export default function App() {
       {/* Header */}
       <header className="header">
         <div className="logo-section">
-          <div className="logo-icon">📅</div>
+          <div className="logo-icon">
+            <img src="/assets/logo.svg" alt="Logo" />
+          </div>
           <div className="logo-text">
             <h1>Kalibratie & Onderhoud Planner</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -917,6 +970,18 @@ export default function App() {
           </div>
         </div>
         <div className="flex gap-2">
+          {user && (
+            <button className="btn-secondary" onClick={logout} title="Uitloggen">
+              Log uit ({user.email.split('@')[0]})
+            </button>
+          )}
+          <button 
+            className={`btn-icon-settings ${sidebarOpen ? 'active' : ''}`}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title="Instellingen"
+          >
+            <Sliders size={18} />
+          </button>
           <button className="btn-secondary" onClick={() => { setActiveTab('register'); setShowCustomerForm(true); }}>
             <Plus size={16} /> Nieuwe Klant
           </button>
@@ -1527,170 +1592,176 @@ export default function App() {
                         <p className="text-muted" style={{ fontSize: '0.85rem' }}>Kies links een klant om de machines en planningen te bekijken, of maak een nieuwe klant aan.</p>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                <div className="register-sidebar">
-                  <div className="sidebar-title">
-                    <Sliders size={18} /> Globale Custom Fields
-                  </div>
-                  <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                    Wanneer je hier een veld toevoegt, verschijnt dit veld automatisch (als invoerveld) op alle klantkaarten.
-                  </p>
-                  
-                  <div className="field-list">
-                    {globalCustomFields.map(field => (
-                      <div key={field} className="field-item">
-                        <span>{field}</span>
-                        <button className="btn-icon-delete" onClick={() => deleteGlobalCustomField(field)}>
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="form-inline">
-                    <input 
-                      type="text" 
-                      placeholder="Nieuwe veldnaam..." 
-                      className="search-input" 
-                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                      value={newFieldName}
-                      onChange={(e) => setNewFieldName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addGlobalCustomField(newFieldName)}
-                    />
-                    <button 
-                      className="btn-primary" 
-                      style={{ padding: '0.4rem 0.75rem' }}
-                      onClick={() => addGlobalCustomField(newFieldName)}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="register-sidebar-divider"></div>
-
-                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
-                  <Users size={18} /> Servicepartners
-                </div>
-                <p className="text-secondary" style={{ fontSize: '0.75rem', marginBottom: '0.75rem' }}>
-                  Klik op een partner om telefoon/e-mail te bewerken.
-                </p>
-                
-                <div className="sp-card-list">
-                  {servicepartners.filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
-                  const p = (() => { try { return typeof partner === 'string' && (partner.startsWith('{') || partner.startsWith('[')) ? JSON.parse(partner) : partner; } catch(e) { return partner; } })();
-                    const pName = partner.name || partner;
-                    return (
-                      <div key={partner.id || partner} className="sp-card" onClick={() => setEditingServicePartner(partner)}>
-                        <div className="sp-card-top">
-                          <span className="sp-card-name">{pName}</span>
-                          <button className="btn-icon-delete" onClick={(e) => { e.stopPropagation(); deleteServicePartner(partner.id || partner); }} title="Verwijder">
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                        <div className="sp-card-details">
-                          {partner.phone && <span className="sp-badge-phone">📞 {partner.phone}</span>}
-                          {partner.email && <span className="sp-badge-email">✉ {partner.email}</span>}
-                          {!partner.phone && !partner.email && <span className="text-muted" style={{ fontSize: '0.7rem' }}>Klik om contactgegevens in te vullen</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="form-inline" style={{ marginTop: '0.75rem' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Partner toevoegen..." 
-                    className="search-input" 
-                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                    value={newServicePartnerName}
-                    onChange={(e) => setNewServicePartnerName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addServicePartner(newServicePartnerName)}
-                  />
-                  <button 
-                    className="btn-primary" 
-                    style={{ padding: '0.4rem 0.75rem' }}
-                    onClick={() => addServicePartner(newServicePartnerName)}
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                <div className="register-sidebar-divider"></div>
-
-                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
-                  <Wrench size={18} /> Weegschaal Types
-                </div>
-                
-                <div className="tag-list">
-                  {soortWeegschaalOpties.map(opt => (
-                    <div key={opt} className="tag-item">
-                      <span>{opt}</span>
-                      <button className="tag-remove" onClick={() => deleteWeegschaalType(opt)}>✕</button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="form-inline" style={{ marginTop: '0.5rem' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Nieuw type..." 
-                    className="search-input" 
-                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                    value={newWeegschaalType}
-                    onChange={(e) => setNewWeegschaalType(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addWeegschaalType(newWeegschaalType)}
-                  />
-                  <button 
-                    className="btn-primary" 
-                    style={{ padding: '0.4rem 0.75rem' }}
-                    onClick={() => addWeegschaalType(newWeegschaalType)}
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                <div className="register-sidebar-divider"></div>
-
-                <div className="sidebar-title" style={{ marginTop: '1.5rem' }}>
-                  <Wrench size={18} /> Machine Types
-                </div>
-                
-                <div className="tag-list">
-                  {soortMachineOpties.map(opt => (
-                    <div key={opt} className="tag-item">
-                      <span>{opt}</span>
-                      <button className="tag-remove" onClick={() => deleteMachineType(opt)}>✕</button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="form-inline" style={{ marginTop: '0.5rem' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Nieuw type..." 
-                    className="search-input" 
-                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                    value={newMachineType}
-                    onChange={(e) => setNewMachineType(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addMachineType(newMachineType)}
-                  />
-                  <button 
-                    className="btn-primary" 
-                    style={{ padding: '0.4rem 0.75rem' }}
-                    onClick={() => addMachineType(newMachineType)}
-                  >
-                    <Plus size={14} />
-                  </button>
                 </div>
               </div>
+            </div>
             )}
           </>
         )}
       </main>
+
+      {/* COLLAPSIBLE SETTINGS SIDEBAR */}
+      <div className={`settings-sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+      <aside className={`settings-sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="settings-sidebar-header">
+          <Sliders size={16} /> Instellingen
+          <button className="modal-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
+        </div>
+        
+        <div className="settings-sidebar-tabs">
+          {[
+            { id: 'fields', label: 'Custom Veld', icon: '📋' },
+            { id: 'partners', label: 'Servicepartners', icon: '🤝' },
+            { id: 'weegschaal', label: 'Weegschaal Types', icon: '⚖️' },
+            { id: 'machine', label: 'Machine Types', icon: '🔩' },
+            { id: 'users', label: 'Gebruikers', icon: '👤', adminOnly: true },
+          ].filter(tab => !tab.adminOnly || profile?.role === 'admin').map(tab => (
+            <button
+              key={tab.id}
+              className={`settings-tab ${sidebarSection === tab.id ? 'active' : ''}`}
+              onClick={() => setSidebarSection(sidebarSection === tab.id ? '' : tab.id)}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="settings-sidebar-content">
+          {/* Gebruikersbeheer */}
+          {sidebarSection === 'users' && profile?.role === 'admin' && (
+            <div className="settings-panel">
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Huidige medewerkers. Nieuwe gebruikers kunnen momenteel alleen via het dashboard worden toegevoegd.
+              </p>
+              <div className="sp-card-list">
+                 {/* Users will be fetched here in a future task if needed, for now just show account info */}
+                 <div className="sp-card">
+                    <div className="sp-card-name">Jouw Account</div>
+                    <div className="sp-card-details">
+                       <span className="sp-badge-email">{user.email}</span>
+                       <span className="badge badge-contract">{profile?.role}</span>
+                    </div>
+                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Custom Fields */}
+          {sidebarSection === 'fields' && (
+            <div className="settings-panel">
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Velden die verschijnen op alle klant- en machinekaarten.
+              </p>
+              <div className="field-list" style={{ marginBottom: '0.75rem' }}>
+                {globalCustomFields.map(field => (
+                  <div key={field} className="field-item">
+                    <span>{field}</span>
+                    <button className="btn-icon-delete" onClick={() => deleteGlobalCustomField(field)}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="form-inline">
+                <input type="text" placeholder="Veldnaam..." className="search-input" style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                  value={newFieldName} onChange={e => setNewFieldName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addGlobalCustomField(newFieldName)} />
+                <button className="btn-primary" style={{ padding: '0.4rem 0.75rem' }} onClick={() => addGlobalCustomField(newFieldName)}>
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Service Partners */}
+          {sidebarSection === 'partners' && (
+            <div className="settings-panel">
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Klik op een partner om contactgegevens te bewerken.
+              </p>
+              <div className="sp-card-list" style={{ marginBottom: '0.75rem' }}>
+                {servicepartners.filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
+                  const pName = partner.name || partner;
+                  return (
+                    <div key={partner.id || partner} className="sp-card" onClick={() => setEditingServicePartner(partner)}>
+                      <div className="sp-card-top">
+                        <span className="sp-card-name">{pName}</span>
+                        <button className="btn-icon-delete" onClick={(e) => { e.stopPropagation(); deleteServicePartner(partner.id || partner); }} title="Verwijder">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <div className="sp-card-details">
+                        {partner.phone && <span className="sp-badge-phone">📞 {partner.phone}</span>}
+                        {partner.email && <span className="sp-badge-email">✉ {partner.email}</span>}
+                        {!partner.phone && !partner.email && <span className="text-muted" style={{ fontSize: '0.7rem' }}>Klik om in te vullen</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="form-inline">
+                <input type="text" placeholder="Partner toevoegen..." className="search-input" style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                  value={newServicePartnerName} onChange={e => setNewServicePartnerName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addServicePartner(newServicePartnerName)} />
+                <button className="btn-primary" style={{ padding: '0.4rem 0.75rem' }} onClick={() => addServicePartner(newServicePartnerName)}>
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Weegschaal Types */}
+          {sidebarSection === 'weegschaal' && (
+            <div className="settings-panel">
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Types voor de "Soort Weegschaal" dropdown.
+              </p>
+              <div className="tag-list" style={{ marginBottom: '0.75rem' }}>
+                {soortWeegschaalOpties.map(opt => (
+                  <div key={opt} className="tag-item">
+                    <span>{opt}</span>
+                    <button className="tag-remove" onClick={() => deleteWeegschaalType(opt)}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <div className="form-inline">
+                <input type="text" placeholder="Nieuw type..." className="search-input" style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                  value={newWeegschaalType} onChange={e => setNewWeegschaalType(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addWeegschaalType(newWeegschaalType)} />
+                <button className="btn-primary" style={{ padding: '0.4rem 0.75rem' }} onClick={() => addWeegschaalType(newWeegschaalType)}>
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Machine Types */}
+          {sidebarSection === 'machine' && (
+            <div className="settings-panel">
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Types voor de "Soort Machine" dropdown.
+              </p>
+              <div className="tag-list" style={{ marginBottom: '0.75rem' }}>
+                {soortMachineOpties.map(opt => (
+                  <div key={opt} className="tag-item">
+                    <span>{opt}</span>
+                    <button className="tag-remove" onClick={() => deleteMachineType(opt)}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <div className="form-inline">
+                <input type="text" placeholder="Nieuw type..." className="search-input" style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                  value={newMachineType} onChange={e => setNewMachineType(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addMachineType(newMachineType)} />
+                <button className="btn-primary" style={{ padding: '0.4rem 0.75rem' }} onClick={() => addMachineType(newMachineType)}>
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
 
       {/* MODAL: CUSTOMER CARD DETAIL / EDITOR */}
       {selectedTask && (
