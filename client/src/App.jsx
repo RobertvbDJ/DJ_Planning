@@ -90,10 +90,12 @@ export default function App() {
 
   const [draggedOverColumn, setDraggedOverColumn] = useState(null);
 
-  // Fetch initial data
+  // Fetch initial data when user logs in
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
 
   const showToast = (msg) => {
     setToast(msg);
