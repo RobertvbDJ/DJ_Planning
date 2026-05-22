@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth, supabase } from './AuthContext';
 import LoginPage from './LoginPage';
 import { 
   Calendar, 
@@ -89,21 +89,6 @@ export default function App() {
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
 
   const [draggedOverColumn, setDraggedOverColumn] = useState(null);
-
-  if (authLoading) {
-    return (
-      <div className="login-container">
-        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-          <Clock size={48} className="animate-spin" />
-          <p>Sessie controleren...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
 
   // Fetch initial data
   useEffect(() => {
@@ -940,6 +925,17 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {authLoading ? (
+        <div className="login-container">
+          <div style={{ color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+            <Clock size={48} className="animate-spin" />
+            <p>Sessie controleren...</p>
+          </div>
+        </div>
+      ) : !user ? (
+        <LoginPage />
+      ) : (
+        <>
       {/* Toast Alert */}
       {toast && (
         <div className="toast">
@@ -1892,6 +1888,7 @@ export default function App() {
           }}
         />
       )}
+    </>
     </div>
   );
 }
