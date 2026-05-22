@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './AuthContext';
 import { 
-  Plus, Trash2, User, Shield, ShieldOff, X, Sliders,
+  Plus, Trash2, Shield, ShieldOff, X, Sliders,
   Mail, UserPlus, FileText, Wrench, Scale, Users, HardDrive
 } from 'lucide-react';
 
@@ -17,18 +16,15 @@ export default function SettingsPage({
   profile,
   user,
   showToast,
-  // Custom Fields
   globalCustomFields,
   addGlobalCustomField,
   deleteGlobalCustomField,
-  // Service Partners
   servicepartners,
   addServicePartner,
   deleteServicePartner,
   updateServicePartner,
   setEditingServicePartner,
   editingServicePartner,
-  // Type Options
   soortWeegschaalOpties,
   setSoortWeegschaalOpties,
   soortMachineOpties,
@@ -39,19 +35,16 @@ export default function SettingsPage({
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
 
-  // Add user form
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('staff');
   const [addingUser, setAddingUser] = useState(false);
 
-  // New field/partner/type inputs
   const [newFieldName, setNewFieldName] = useState('');
   const [newPartnerName, setNewPartnerName] = useState('');
   const [newWeegschaalType, setNewWeegschaalType] = useState('');
   const [newMachineType, setNewMachineType] = useState('');
 
-  // Load users on mount + tab focus
   useEffect(() => {
     if (activeSection === 'users' && profile?.role === 'admin') {
       fetchUsers();
@@ -61,12 +54,16 @@ export default function SettingsPage({
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      const { data, error } = await supabase.rpc('get_all_users');
-      if (error) throw error;
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
       setUsersList(data || []);
     } catch (err) {
       console.error('Fetch users error:', err);
-      showToast('Kon gebruikers niet laden');
+      showToast('Kon gebruikers niet laden: ' + err.message);
     } finally {
       setLoadingUsers(false);
     }
@@ -77,12 +74,17 @@ export default function SettingsPage({
     if (!newEmail.trim() || !newPassword.trim()) return;
     setAddingUser(true);
     try {
-      const { data, error } = await supabase.rpc('admin_create_user_direct', {
-        user_email: newEmail.trim(),
-        user_password: newPassword,
-        user_role: newRole,
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newEmail.trim(),
+          password: newPassword,
+          role: newRole,
+        }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Aanmaken mislukt');
       showToast(`Gebruiker ${newEmail} aangemaakt`);
       setShowAddUser(false);
       setNewEmail('');
@@ -90,35 +92,40 @@ export default function SettingsPage({
       setNewRole('staff');
       fetchUsers();
     } catch (err) {
-      showToast(`Fout: ${err.message}`);
+      showToast('Fout: ' + err.message);
     } finally {
       setAddingUser(false);
     }
   };
 
   const handleDeleteUser = async (userId, userEmail) => {
-    if (!confirm(`Weet je zeker dat je ${userEmail} wilt verwijderen?`)) return;
+    if (!window.confirm(`Weet je zeker dat je ${userEmail} wilt verwijderen?`)) return;
     try {
-      const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
-      if (error) throw error;
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId }),
+      });
+      if (!res.ok) throw new Error('Verwijderen mislukt');
       showToast(`${userEmail} verwijderd`);
       fetchUsers();
     } catch (err) {
-      showToast(`Fout bij verwijderen: ${err.message}`);
+      showToast('Fout bij verwijderen: ' + err.message);
     }
   };
 
   const handleChangeRole = async (userId, userEmail, newRole) => {
     try {
-      const { error } = await supabase.rpc('admin_update_role', {
-        target_user_id: userId,
-        new_role: newRole,
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, role: newRole }),
       });
-      if (error) throw error;
+      if (!res.ok) throw new Error('Rol wijzigen mislukt');
       showToast(`Rol van ${userEmail} gewijzigd naar ${newRole}`);
       fetchUsers();
     } catch (err) {
-      showToast(`Fout bij rollen wijzigen: ${err.message}`);
+      showToast('Fout: ' + err.message);
     }
   };
 
@@ -133,7 +140,6 @@ export default function SettingsPage({
       </div>
 
       <div className="settings-layout">
-        {/* Navigation Sidebar */}
         <nav className="settings-nav">
           {visibleSections.map(section => (
             <button
@@ -155,18 +161,15 @@ export default function SettingsPage({
           )}
         </nav>
 
-        {/* Content Area */}
         <div className="settings-content">
 
-          {/* ========== USERS SECTION ========== */}
+          {/* ========== USERS ========== */}
           {activeSection === 'users' && isAdmin && (
             <div className="settings-section">
               <div className="settings-section-title">👤 Gebruikersbeheer</div>
               <div className="settings-section-desc">
                 Beheer medewerkers die toegang hebben tot het planningsysteem.
-                Alleen administrators kunnen gebruikers toevoegen of verwijderen.
               </div>
-
               <div className="user-mgmt-toolbar">
                 <div className="user-count-badge">
                   {loadingUsers ? '...' : usersList.length} medewerker{usersList.length !== 1 ? 's' : ''}
@@ -211,28 +214,19 @@ export default function SettingsPage({
                       </div>
                       <div className="user-actions">
                         {u.role !== 'admin' ? (
-                          <button
-                            className="btn-promote"
-                            title="Promoveer naar Admin"
-                            onClick={() => handleChangeRole(u.id, u.email, 'admin')}
-                          >
+                          <button className="btn-promote" title="Promoveer naar Admin"
+                            onClick={() => handleChangeRole(u.id, u.email, 'admin')}>
                             <Shield size={14} />
                           </button>
                         ) : u.id !== user?.id ? (
-                          <button
-                            className="btn-demote"
-                            title="Zet terug naar Staff"
-                            onClick={() => handleChangeRole(u.id, u.email, 'staff')}
-                          >
+                          <button className="btn-demote" title="Zet terug naar Staff"
+                            onClick={() => handleChangeRole(u.id, u.email, 'staff')}>
                             <ShieldOff size={14} />
                           </button>
                         ) : null}
                         {u.id !== user?.id && (
-                          <button
-                            className="btn-delete"
-                            title="Verwijder gebruiker"
-                            onClick={() => handleDeleteUser(u.id, u.email)}
-                          >
+                          <button className="btn-delete" title="Verwijder gebruiker"
+                            onClick={() => handleDeleteUser(u.id, u.email)}>
                             <Trash2 size={14} />
                           </button>
                         )}
@@ -244,7 +238,7 @@ export default function SettingsPage({
             </div>
           )}
 
-          {/* ========== CUSTOM FIELDS SECTION ========== */}
+          {/* ========== CUSTOM FIELDS ========== */}
           {activeSection === 'fields' && (
             <div className="settings-section">
               <div className="settings-section-title">📋 Custom Velden</div>
@@ -262,16 +256,11 @@ export default function SettingsPage({
                   </div>
                 ))}
                 {globalCustomFields.length === 0 && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Nog geen custom velden...
-                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nog geen custom velden...</div>
                 )}
               </div>
               <div className="form-inline" style={{ marginTop: '0.5rem' }}>
-                <input
-                  type="text"
-                  placeholder="Nieuw veldnaam..."
-                  className="search-input"
+                <input type="text" placeholder="Nieuw veldnaam..." className="search-input"
                   value={newFieldName}
                   onChange={e => setNewFieldName(e.target.value)}
                   onKeyDown={e => {
@@ -279,183 +268,102 @@ export default function SettingsPage({
                       addGlobalCustomField(newFieldName.trim());
                       setNewFieldName('');
                     }
-                  }}
-                />
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    if (newFieldName.trim()) {
-                      addGlobalCustomField(newFieldName.trim());
-                      setNewFieldName('');
-                    }
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
+                  }} />
+                <button className="btn-primary" onClick={() => {
+                  if (newFieldName.trim()) { addGlobalCustomField(newFieldName.trim()); setNewFieldName(''); }
+                }}><Plus size={14} /></button>
               </div>
             </div>
           )}
 
-          {/* ========== SERVICE PARTNERS SECTION ========== */}
+          {/* ========== SERVICE PARTNERS ========== */}
           {activeSection === 'partners' && (
             <div className="settings-section">
               <div className="settings-section-title">🤝 Servicepartners</div>
-              <div className="settings-section-desc">
-                Klik op een partner om contactgegevens te bewerken.
-              </div>
+              <div className="settings-section-desc">Klik op een partner om contactgegevens te bewerken.</div>
               <div style={{ marginBottom: '0.75rem' }}>
                 {(servicepartners || []).filter(p => p && (typeof p === 'string' || p.name)).map(partner => {
                   const pName = partner.name || partner;
                   return (
-                    <div
-                      key={partner.id || partner}
-                      className="settings-partner-card"
-                      onClick={() => setEditingServicePartner(partner)}
-                    >
+                    <div key={partner.id || partner} className="settings-partner-card"
+                      onClick={() => setEditingServicePartner(partner)}>
                       <div className="partner-name">{pName}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem' }}>
                         {partner.phone && <span>📞 {partner.phone}</span>}
                         {partner.email && <span>✉ {partner.email}</span>}
                       </div>
-                      <button
-                        className="partner-delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteServicePartner(partner.id || partner);
-                        }}
-                        title="Verwijder"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      <button className="partner-delete" onClick={(e) => {
+                        e.stopPropagation();
+                        deleteServicePartner(partner.id || partner);
+                      }} title="Verwijder"><Trash2 size={12} /></button>
                     </div>
                   );
                 })}
               </div>
               <div className="form-inline">
-                <input
-                  type="text"
-                  placeholder="Naam servicepartner..."
-                  className="search-input"
+                <input type="text" placeholder="Naam servicepartner..." className="search-input"
                   value={newPartnerName}
                   onChange={e => setNewPartnerName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newPartnerName.trim()) {
-                      addServicePartner(newPartnerName.trim());
-                      setNewPartnerName('');
-                    }
-                  }}
-                />
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    if (newPartnerName.trim()) {
-                      addServicePartner(newPartnerName.trim());
-                      setNewPartnerName('');
-                    }
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
+                  onKeyDown={e => { if (e.key === 'Enter' && newPartnerName.trim()) { addServicePartner(newPartnerName.trim()); setNewPartnerName(''); } }} />
+                <button className="btn-primary" onClick={() => {
+                  if (newPartnerName.trim()) { addServicePartner(newPartnerName.trim()); setNewPartnerName(''); }
+                }}><Plus size={14} /></button>
               </div>
             </div>
           )}
 
-          {/* ========== SCALE TYPES SECTION ========== */}
+          {/* ========== SCALE TYPES ========== */}
           {activeSection === 'weegschaal' && (
             <div className="settings-section">
               <div className="settings-section-title">⚖️ Weegschaal Types</div>
-              <div className="settings-section-desc">
-                Types die beschikbaar zijn bij het toevoegen van een weegschaal.
-              </div>
+              <div className="settings-section-desc">Types beschikbaar bij het toevoegen van een weegschaal.</div>
               <div className="settings-type-chips">
                 {soortWeegschaalOpties.map(type => (
                   <div key={type} className="settings-type-chip">
                     <Scale size={11} />
                     <span>{type}</span>
-                    <button
-                      onClick={() => setSoortWeegschaalOpties(prev => prev.filter(t => t !== type))}
-                      title="Verwijder"
-                    >
+                    <button onClick={() => setSoortWeegschaalOpties(prev => prev.filter(t => t !== type))} title="Verwijder">
                       <X size={10} />
                     </button>
                   </div>
                 ))}
               </div>
               <div className="form-inline">
-                <input
-                  type="text"
-                  placeholder="Nieuw weegschaal type..."
-                  className="search-input"
+                <input type="text" placeholder="Nieuw weegschaal type..." className="search-input"
                   value={newWeegschaalType}
                   onChange={e => setNewWeegschaalType(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newWeegschaalType.trim()) {
-                      setSoortWeegschaalOpties(prev => [...prev.filter(t => t !== newWeegschaalType.trim()), newWeegschaalType.trim()]);
-                      setNewWeegschaalType('');
-                    }
-                  }}
-                />
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    if (newWeegschaalType.trim()) {
-                      setSoortWeegschaalOpties(prev => [...prev.filter(t => t !== newWeegschaalType.trim()), newWeegschaalType.trim()]);
-                      setNewWeegschaalType('');
-                    }
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
+                  onKeyDown={e => { if (e.key === 'Enter' && newWeegschaalType.trim()) { setSoortWeegschaalOpties(prev => [...prev.filter(t => t !== newWeegschaalType.trim()), newWeegschaalType.trim()]); setNewWeegschaalType(''); } }} />
+                <button className="btn-primary" onClick={() => {
+                  if (newWeegschaalType.trim()) { setSoortWeegschaalOpties(prev => [...prev.filter(t => t !== newWeegschaalType.trim()), newWeegschaalType.trim()]); setNewWeegschaalType(''); }
+                }}><Plus size={14} /></button>
               </div>
             </div>
           )}
 
-          {/* ========== MACHINE TYPES SECTION ========== */}
+          {/* ========== MACHINE TYPES ========== */}
           {activeSection === 'machine' && (
             <div className="settings-section">
               <div className="settings-section-title">🔩 Machine Types</div>
-              <div className="settings-section-desc">
-                Types die beschikbaar zijn bij het toevoegen van een afvalmachine.
-              </div>
+              <div className="settings-section-desc">Types beschikbaar bij het toevoegen van een afvalmachine.</div>
               <div className="settings-type-chips">
                 {soortMachineOpties.map(type => (
                   <div key={type} className="settings-type-chip">
                     <Wrench size={11} />
                     <span>{type}</span>
-                    <button
-                      onClick={() => setSoortMachineOpties(prev => prev.filter(t => t !== type))}
-                      title="Verwijder"
-                    >
+                    <button onClick={() => setSoortMachineOpties(prev => prev.filter(t => t !== type))} title="Verwijder">
                       <X size={10} />
                     </button>
                   </div>
                 ))}
               </div>
               <div className="form-inline">
-                <input
-                  type="text"
-                  placeholder="Nieuw machine type..."
-                  className="search-input"
+                <input type="text" placeholder="Nieuw machine type..." className="search-input"
                   value={newMachineType}
                   onChange={e => setNewMachineType(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newMachineType.trim()) {
-                      setSoortMachineOpties(prev => [...prev.filter(t => t !== newMachineType.trim()), newMachineType.trim()]);
-                      setNewMachineType('');
-                    }
-                  }}
-                />
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    if (newMachineType.trim()) {
-                      setSoortMachineOpties(prev => [...prev.filter(t => t !== newMachineType.trim()), newMachineType.trim()]);
-                      setNewMachineType('');
-                    }
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
+                  onKeyDown={e => { if (e.key === 'Enter' && newMachineType.trim()) { setSoortMachineOpties(prev => [...prev.filter(t => t !== newMachineType.trim()), newMachineType.trim()]); setNewMachineType(''); } }} />
+                <button className="btn-primary" onClick={() => {
+                  if (newMachineType.trim()) { setSoortMachineOpties(prev => [...prev.filter(t => t !== newMachineType.trim()), newMachineType.trim()]); setNewMachineType(''); }
+                }}><Plus size={14} /></button>
               </div>
             </div>
           )}
@@ -470,49 +378,25 @@ export default function SettingsPage({
             <form onSubmit={handleAddUser}>
               <div className="form-group">
                 <label>E-mailadres</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  placeholder="naam@bedrijf.nl"
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                  autoFocus
-                  required
-                />
+                <input type="email" className="form-control" placeholder="naam@bedrijf.nl"
+                  value={newEmail} onChange={e => setNewEmail(e.target.value)} autoFocus required />
               </div>
               <div className="form-group">
                 <label>Wachtwoord</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  placeholder="••••••••"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <input type="password" className="form-control" placeholder="••••••••"
+                  value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} />
               </div>
               <div className="form-group">
                 <label>Rol</label>
                 <div className="role-select">
-                  <div
-                    className={`role-option ${newRole === 'staff' ? 'selected' : ''}`}
-                    onClick={() => setNewRole('staff')}
-                  >
-                    👤 Staff
-                  </div>
-                  <div
-                    className={`role-option ${newRole === 'admin' ? 'selected admin' : ''}`}
-                    onClick={() => setNewRole('admin')}
-                  >
-                    👑 Admin
-                  </div>
+                  <div className={`role-option ${newRole === 'staff' ? 'selected' : ''}`}
+                    onClick={() => setNewRole('staff')}>👤 Staff</div>
+                  <div className={`role-option ${newRole === 'admin' ? 'selected admin' : ''}`}
+                    onClick={() => setNewRole('admin')}>👑 Admin</div>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowAddUser(false)}>
-                  Annuleren
-                </button>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddUser(false)}>Annuleren</button>
                 <button type="submit" className="btn-primary" disabled={addingUser}>
                   {addingUser ? 'Bezig...' : 'Gebruiker Aanmaken'}
                 </button>
@@ -522,7 +406,6 @@ export default function SettingsPage({
         </div>
       )}
 
-      {/* Service Partner Edit Modal (reused from App) */}
       {editingServicePartner && (
         <ServicePartnerFormModal
           partner={editingServicePartner}
@@ -537,13 +420,9 @@ export default function SettingsPage({
   );
 }
 
-// =============================================================================
-// SUB-COMPONENT: SERVICE PARTNER EDIT FORM (reused from App.jsx)
-// =============================================================================
 function ServicePartnerFormModal({ partner, onClose, onSave }) {
   const pid = partner.id || partner;
-  const existingName = partner.name || partner;
-  const [name, setName] = useState(existingName);
+  const [name, setName] = useState(partner.name || partner);
   const [phone, setPhone] = useState(partner.phone || '');
   const [email, setEmail] = useState(partner.email || '');
   const [saving, setSaving] = useState(false);

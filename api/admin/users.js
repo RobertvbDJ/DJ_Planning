@@ -1,166 +1,146 @@
 // Vercel Serverless Function — Admin User Management
-// Uses Supabase Management API with PAT token
+// Uses Supabase Management API's database/query endpoint (via PAT token)
+// Bypasses PostgREST RPC issues entirely
+
+const SUPABASE_REF = 'yeaysglgpdjozcgmflxc';
+const MGMT_API = 'https://api.supabase.com/v1';
+
 export default async function handler(req, res) {
-  const SUPABASE_REF = 'yeaysglgpdjozcgmflxc';
-  const SUPABASE_URL = `https://${SUPABASE_REF}.supabase.co`;
-  const MANAGEMENT_TOKEN = process.env.SUPABASE_MANAGEMENT_TOKEN;
+  const token = process.env.SUPABASE_MANAGEMENT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'Token not configured' });
 
-  if (!MANAGEMENT_TOKEN) {
-    return res.status(500).json({ error: 'Management token not configured' });
-  }
+  // Enable CORS for browser
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,PATCH,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Verify admin session from the auth cookie / Authorization header
-  // For simplicity, we verify the user is an admin via the RPC check in SQL
-  // The real security is in the SQL function's SECURITY DEFINER + auth.uid() check
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    switch (req.method) {
-      case 'GET':
-        return await listUsers(req, res, SUPABASE_REF, MANAGEMENT_TOKEN);
-      case 'POST':
-        return await createUser(req, res, SUPABASE_URL, SUPABASE_REF, MANAGEMENT_TOKEN);
-      case 'DELETE':
-        return await deleteUser(req, res, SUPABASE_REF, MANAGEMENT_TOKEN);
-      case 'PATCH':
-        return await updateRole(req, res, SUPABASE_REF, MANAGEMENT_TOKEN);
-      default:
-        res.setHeader('Allow', ['GET', 'POST', 'DELETE', 'PATCH']);
-        return res.status(405).json({ error: `Method ${req.method} not allowed` });
-    }
+    if (req.method === 'GET') return await listUsers(res, token);
+    if (req.method === 'POST') return await createUser(req, res, token);
+    if (req.method === 'DELETE') return await deleteUser(req, res, token);
+    if (req.method === 'PATCH') return await updateRole(req, res, token);
+    return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('Admin API error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
 
-async function listUsers(req, res, ref, token) {
+async function listUsers(res, token) {
   const result = await fetch(
-    `https://api.supabase.com/v1/projects/${ref}/database/query`,
+    `${MGMT_API}/projects/${SUPABASE_REF}/database/query`,
     {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: 'SELECT * FROM get_all_users()' })
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT u.id, u.email::text, u.created_at, u.last_sign_in_at::timestamptz,
+                       COALESCE(p.role, 'staff')::text as role
+                FROM auth.users u
+                LEFT JOIN public.profiles p ON p.id = u.id
+                ORDER BY u.created_at DESC`
+      })
     }
   );
-  const data = await result.json();
-  // data is an array of arrays [[id, email, created_at, last_sign_in, role], ...]
-  const users = (data || []).map(row => ({
-    id: row[0],
-    email: row[1],
-    created_at: row[2],
-    last_sign_in_at: row[3],
-    role: row[4]
+  const rows = await result.json();
+  // rows is [[id,email,created_at,last_sign_in,role], ...] or {message: error}
+  if (!Array.isArray(rows)) return res.json([]);
+  const users = rows.map(r => ({
+    id: r[0], email: r[1], created_at: r[2],
+    last_sign_in_at: r[3], role: r[4]
   }));
   return res.json(users);
 }
 
-async function createUser(req, res, url, ref, token) {
+async function createUser(req, res, token) {
   const { email, password, role = 'staff' } = req.body;
-  
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
+  if (!email || !password) return res.status(400).json({ error: 'Email en wachtwoord verplicht' });
 
-  // Step 1: Create user via GoTrue Admin API
-  const createResult = await fetch(
-    `${url}/auth/v1/admin/users`,
+  // Hash password using PostgreSQL pgcrypto
+  const hashResult = await fetch(
+    `${MGMT_API}/projects/${SUPABASE_REF}/database/query`,
     {
       method: 'POST',
-      headers: {
-        'apikey': process.env.VITE_SUPABASE_ANON_KEY || '',
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: `SELECT crypt('${password.replace(/'/g, "''")}', gen_salt('bf')) as hash;` })
+    }
+  );
+  const hashData = await hashResult.json();
+  const hashedPw = hashData?.[0]?.hash;
+  if (!hashedPw) return res.status(500).json({ error: 'Wachtwoord hashen mislukt' });
+
+  // Create the user and identity in one go
+  const createResult = await fetch(
+    `${MGMT_API}/projects/${SUPABASE_REF}/database/query`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email,
-        password,
-        email_confirm: true
+        query: `
+          DO $$
+          DECLARE
+            new_id uuid := gen_random_uuid();
+          BEGIN
+            INSERT INTO auth.users (id, instance_id, email, encrypted_password,
+              email_confirmed_at, confirmation_sent_at, raw_app_meta_data, raw_user_meta_data,
+              created_at, updated_at, aud, role)
+            VALUES (new_id, '00000000-0000-0000-0000-000000000000',
+              '${email.replace(/'/g, "''")}', '${hashedPw.replace(/'/g, "''")}',
+              now(), now(),
+              '{"provider":"email","providers":["email"]}', '{}',
+              now(), now(), 'authenticated', 'authenticated');
+
+            INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id,
+              last_sign_in_at, created_at, updated_at)
+            VALUES (new_id, new_id,
+              jsonb_build_object('sub', new_id::text, 'email', '${email.replace(/'/g, "''")}'),
+              'email', new_id::text, now(), now(), now());
+
+            INSERT INTO public.profiles (id, role)
+            VALUES (new_id, '${role}')
+            ON CONFLICT (id) DO UPDATE SET role = '${role}';
+          END $$;
+        `
       })
     }
   );
-  
   const createData = await createResult.json();
-  
-  if (!createResult.ok) {
-    return res.status(400).json({ error: createData.msg || createData.error || 'Failed to create user' });
-  }
+  if (!createResult.ok) return res.status(400).json({ error: String(createData) });
 
-  // Step 2: Set the user's role in profiles table
-  if (createData.id) {
-    await fetch(
-      `https://api.supabase.com/v1/projects/${ref}/database/query`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `INSERT INTO profiles (id, role) VALUES ('${createData.id}', '${role}') ON CONFLICT (id) DO UPDATE SET role = '${role}'`
-        })
-      }
-    );
-  }
-
-  return res.json({
-    id: createData.id,
-    email: createData.email,
-    role,
-    created_at: createData.created_at
-  });
+  return res.json({ success: true, email, role });
 }
 
-async function deleteUser(req, res, ref, token) {
+async function deleteUser(req, res, token) {
   const { id } = req.body;
-  if (!id) {
-    return res.status(400).json({ error: 'User ID is required' });
-  }
+  if (!id) return res.status(400).json({ error: 'Gebruiker ID verplicht' });
 
-  const result = await fetch(
-    `https://api.supabase.com/v1/projects/${ref}/database/query`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: `SELECT admin_delete_user('${id}'::uuid)` })
-    }
-  );
-  
-  if (!result.ok) {
-    const err = await result.json();
-    return res.status(400).json({ error: err.error || 'Failed to delete user' });
-  }
-  
+  // Delete profiles first (foreign keys), then user (cascades to identities)
+  await fetch(`${MGMT_API}/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: `DELETE FROM public.profiles WHERE id = '${id}'::uuid;` })
+  });
+
+  const result = await fetch(`${MGMT_API}/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: `DELETE FROM auth.users WHERE id = '${id}'::uuid;` })
+  });
+  if (!result.ok) return res.status(400).json({ error: 'Verwijderen mislukt' });
   return res.json({ success: true });
 }
 
-async function updateRole(req, res, ref, token) {
+async function updateRole(req, res, token) {
   const { id, role } = req.body;
-  if (!id || !role) {
-    return res.status(400).json({ error: 'User ID and role are required' });
-  }
+  if (!id || !role) return res.status(400).json({ error: 'Gebruiker ID en rol verplicht' });
 
-  const result = await fetch(
-    `https://api.supabase.com/v1/projects/${ref}/database/query`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: `SELECT admin_update_role('${id}'::uuid, '${role}')` })
-    }
-  );
-  
-  if (!result.ok) {
-    const err = await result.json();
-    return res.status(400).json({ error: err.error || 'Failed to update role' });
-  }
-  
+  await fetch(`${MGMT_API}/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: `INSERT INTO public.profiles (id, role) VALUES ('${id}'::uuid, '${role}')
+              ON CONFLICT (id) DO UPDATE SET role = '${role}';`
+    })
+  });
   return res.json({ success: true });
 }
