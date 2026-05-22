@@ -1,7 +1,6 @@
 {
   "version": 2,
-  "rootDirectory": "client",
-  "buildCommand": "npx vite build",
-  "outputDirectory": "dist",
+  "buildCommand": "cd client && npm install && node node_modules/vite/dist/node/cli.js build",
+  "outputDirectory": "client/dist",
   "framework": "vite"
 }
