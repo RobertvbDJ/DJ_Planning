@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, supabase } from './AuthContext';
 import LoginPage from './LoginPage';
+import SettingsPage from './SettingsPage';
 import { 
   Calendar, 
   Columns, 
@@ -974,8 +975,8 @@ export default function App() {
             </button>
           )}
           <button 
-            className={`btn-icon-settings ${sidebarOpen ? 'active' : ''}`}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`btn-icon-settings ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
             title="Instellingen"
           >
             <Sliders size={18} />
@@ -1021,6 +1022,12 @@ export default function App() {
         >
           <Users size={18} /> Klanten & Apparaten Register
         </button>
+        <button 
+          className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          <Sliders size={18} /> Instellingen
+        </button>
       </nav>
 
       {/* Main Workspace Area */}
@@ -1032,6 +1039,27 @@ export default function App() {
           </div>
         ) : (
           <>
+            {/* SETTINGS PAGE (replaces sidebar) */}
+            {activeTab === 'settings' && (
+              <SettingsPage
+                profile={profile}
+                user={user}
+                showToast={showToast}
+                globalCustomFields={globalCustomFields}
+                addGlobalCustomField={addGlobalCustomField}
+                deleteGlobalCustomField={deleteGlobalCustomField}
+                servicepartners={servicepartners}
+                addServicePartner={addServicePartner}
+                deleteServicePartner={deleteServicePartner}
+                updateServicePartner={updateServicePartner}
+                setEditingServicePartner={setEditingServicePartner}
+                editingServicePartner={editingServicePartner}
+                soortWeegschaalOpties={soortWeegschaalOpties}
+                setSoortWeegschaalOpties={setSoortWeegschaalOpties}
+                soortMachineOpties={soortMachineOpties}
+                setSoortMachineOpties={setSoortMachineOpties}
+              />
+            )}
             {/* TAB 1: PERIODIC KANBAN BOARD */}
             {activeTab === 'planning' && (
               <div>
