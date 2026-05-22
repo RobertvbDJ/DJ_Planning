@@ -926,7 +926,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <>
       {authLoading ? (
         <div className="login-container">
           <div style={{ color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
@@ -937,7 +937,7 @@ export default function App() {
       ) : !user ? (
         <LoginPage />
       ) : (
-        <>
+      <div className="app-container">
       {/* Toast Alert */}
       {toast && (
         <div className="toast">
@@ -1890,8 +1890,9 @@ export default function App() {
           }}
         />
       )}
-    </>
     </div>
+      )}
+    </>
   );
 }
 
